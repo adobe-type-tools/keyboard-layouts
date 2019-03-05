@@ -109,7 +109,7 @@ import unicodedata, codecs
 company = 'myCompany'
 year = time.localtime()[0]
 keyboard_name = sys.argv[1][:-10].split(os.sep)[-1]
-keyboard_path = os.sep.join(sys.argv[1].split(os.sep)[:-1])
+keyboard_path = os.getcwd()
 
 ### Neutral:
 
