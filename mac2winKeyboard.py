@@ -310,7 +310,7 @@ class Parser(object):
                 self.empty_actions.append(id)
 
         for i in keylist:
-            if i[1] in self.deadkeys.keys():
+            if i[1] in list(self.deadkeys.keys()):
                 i[1] = self.deadkeys[i[1]]
 
         self.action_basekeys.update(dict(keylist)) # This is for adding the actual deadkeys (grave, acute etc) to the dict action_basekeys
@@ -328,7 +328,7 @@ class Parser(object):
             if [i[1], i[2]] == ['none', 'output']:
                 self.action_basekeys[i[0]] = i[3]
 
-            if i[0] in self.action_basekeys.keys():
+            if i[0] in list(self.action_basekeys.keys()):
                 i.append(self.action_basekeys[i[0]])
 
         return self.actionlist
@@ -342,7 +342,7 @@ class Parser(object):
             if i[4] in self.empty_actions:
                 i.append('@') # If the key is a real dead key, mark it. This mark is being used in 'makeOutputDict'.
 
-            if self.action_basekeys.has_key(i[4]):
+            if i[4] in self.action_basekeys:
                 i[3] = 'output'
                 i[4] = self.action_basekeys[i[4]]
                 self.outputlist.append(i)
@@ -356,14 +356,14 @@ class Parser(object):
         # Populates self.keydict, which maps a deadkey (e.g. 02dc, circumflex) to (base character, accented character)) tuples (e.g. 0041, 00c3 == A, Atilde)
 
         for i in self.actionlist:
-            if i[1] in self.deadkeys.keys():
+            if i[1] in list(self.deadkeys.keys()):
                 i.append(self.deadkeys[i[1]])
 
             if len(i) == 6:
                 deadkey = i[5]
                 basekey = i[4]
                 result = i[3]
-                if self.keydict.has_key(deadkey):
+                if deadkey in self.keydict:
                     self.keydict[deadkey].append((basekey, result))
                 else:
                     self.keydict[deadkey] = [(basekey, result)]
@@ -413,11 +413,11 @@ class Parser(object):
             nwin = int(d, 16)
 
             if not nwin in winmac:
-                print "// No equivalent Mac OS code for Windows code %s ('%s'). Skipping." % (nwin, windata[d])
+                print("// No equivalent Mac OS code for Windows code %s ('%s'). Skipping." % (nwin, windata[d]))
                 continue
             n = winmac[nwin]
             if not n in self.outputdict:
-                print "// Could not match Windows code %s ('%s') to Mac OS code %s. Skipping." % (nwin, windata[d], n)
+                print("// Could not match Windows code %s ('%s') to Mac OS code %s. Skipping." % (nwin, windata[d], n))
                 continue
 
             u = self.outputdict[n]
@@ -475,7 +475,7 @@ class Parser(object):
         # Writes a summary of dead keys, their results in all intended combinations.
 
         output = ['']
-        for i in self.keydict.keys():
+        for i in list(self.keydict.keys()):
             output.extend([''])
             output.append('DEADKEY\t%s' % i)
             output.append('')
@@ -489,7 +489,7 @@ class Parser(object):
         # List of dead keys contained in the keyboard layout.
 
         output = ['', 'KEYNAME_DEAD', '']
-        for i in self.deadkeys.values():
+        for i in list(self.deadkeys.values()):
             output.append( '%s\t"%s"' % (i, udata(i)))
         output.append('')
 
@@ -542,7 +542,7 @@ def uni_from_char(string):
     # Returns a 4 or 5-digit string containing the Unicode value of passed glyph.
 
     try:
-        unistring = unicode(string, 'utf-8')
+        unistring = str(string, 'utf-8')
         ordstring = ord(unistring)
         return hex(ordstring)[2:].zfill(4)
 
@@ -551,11 +551,11 @@ def uni_from_char(string):
         # Used in very few keyboard layouts only, the decision was made to insert a placeholder character instead.
 
     except TypeError:
-        print 'Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (string, udata(replacement_char))
+        print('Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (string, udata(replacement_char)))
         return replacement_char
 
     except ValueError:
-        print 'Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (string, udata(replacement_char))
+        print('Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (string, udata(replacement_char)))
         return replacement_char
 
 def charFromUnicode(unicodestring):
@@ -564,7 +564,7 @@ def charFromUnicode(unicodestring):
     if len(unicodestring) > 5:
         return unicodestring
     else:
-        return unichr(int(unicodestring, 16))
+        return chr(int(unicodestring, 16))
 
 def udata(unicodestring):
     # Returns description of characters, e.g. 'DIGIT ONE', 'EXCLAMATION MARK' etc.
@@ -598,7 +598,7 @@ def new_xml(file):
 
         if re.search(output_line, line):
             if re.search(uni_lig, line):
-                print 'Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (re.search(uni_lig, line).group(1), udata(replacement_char))
+                print('Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (re.search(uni_lig, line).group(1), udata(replacement_char)))
                 line = re.sub(uni_lig, replacement_char, line)
             elif re.search(uni_value, line):
                 line = re.sub(uni_value, r'\1', line)
@@ -620,24 +620,24 @@ def new_xml(file):
 def run():
 
     if '-u' in sys.argv:
-        print __usage__
+        print(__usage__)
         return
 
     if "-h" in sys.argv:
-        print __help__
+        print(__help__)
         return
 
     if "-d" in sys.argv:
-        print __doc__
+        print(__doc__)
         return
 
 
     inputfile = sys.argv[1]
     if inputfile.split('.')[1] != 'keylayout':
-        print
-        print 'Input file not recognized.'
-        print 'Please use an XML-based *.keylayout file.'
-        print
+        print()
+        print('Input file not recognized.')
+        print('Please use an XML-based *.keylayout file.')
+        print()
         return
 
     newxml = new_xml(inputfile)
@@ -679,7 +679,7 @@ def run():
     if digit_m:
         trunc = 8 - len(digit_m.group(1))
         if trunc <= 0:
-            print 'Too many digits for a Windows-style (8+3) filename. Please rename the source file.'
+            print('Too many digits for a Windows-style (8+3) filename. Please rename the source file.')
             sys.exit()
         else:
             filename = '%s%s.klc' % (filename[:trunc], digit_m.group(1))
@@ -692,7 +692,7 @@ def run():
         outputfile.write(os.linesep)
     outputfile.close()
 
-    print 'done'
+    print('done')
 
 if __name__ == "__main__":
     run()
