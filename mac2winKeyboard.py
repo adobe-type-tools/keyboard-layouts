@@ -614,15 +614,13 @@ def readFile(path):
     return data
 
 
-def uni_from_char(string):
+def uni_from_char(character):
     '''
-    Returns a 4 or 5-digit string containing the Unicode value of passed glyph.
+    Returns a 4 or 5-digit Unicode hex string for the passed character.
     '''
 
     try:
-        unistring = str(string, 'utf-8')
-        ordstring = ord(unistring)
-        return hex(ordstring)[2:].zfill(4)
+        return '{0:04x}'.format(ord(character))
 
         # For now, 'ligatures' (2 or more characters assigned to one key)
         # are not supported in this conversion script.
@@ -632,11 +630,11 @@ def uni_from_char(string):
         # made to insert a placeholder character instead.
 
     except TypeError:
-        print(error_msg_conversion.format(string, udata(replacement_char)))
+        print(error_msg_conversion.format(character, udata(replacement_char)))
         return replacement_char
 
     except ValueError:
-        print(error_msg_conversion.format(string, udata(replacement_char)))
+        print(error_msg_conversion.format(character, udata(replacement_char)))
         return replacement_char
 
 
