@@ -136,12 +136,12 @@ klc_suffix = klc_suffix_dummy.format(
 
 class Key(object):
 
-    def __init__(self, keymapset, keyindex, keycode, type, result):
+    def __init__(self, keymapset, keyindex, keycode, keytype, result):
 
         self.keymapset = keymapset
         self.keyindex = keyindex
         self.keycode = keycode
-        self.type = type
+        self.keytype = keytype
         self.result = result
         self.output = []
 
@@ -151,21 +151,26 @@ class Key(object):
             str(self.keymapset),
             int(self.keyindex),
             int(self.keycode),
-            str(self.type),
+            str(self.keytype),
             self.result]
         return self.output
 
 
 class Action(object):
 
-    def __init__(self, action, state, type, result):
+    def __init__(self, action, state, action_type, result):
         self.action = action
         self.state = state
-        self.type = type
+        self.action_type = action_type
         self.result = result
 
     def data(self):
-        output = [self.action, str(self.state), str(self.type), self.result]
+        output = [
+            self.action,
+            str(self.state),
+            str(self.action_type),
+            self.result
+        ]
         return output
 
 
@@ -173,7 +178,7 @@ class Parser(object):
 
     def __init__(self):
         # Raw keys as they are in the layout XML
-        self.keylist = []
+        self.key_list = []
 
         # Raw list of actions collected from layout XML
         self.actionlist = []
@@ -184,27 +189,28 @@ class Parser(object):
         # Contains action IDs and the actual base keys (e.g. 'a', 'c' etc.)
         self.action_basekeys = {}
 
-        # Dictionary {States : deadkeys}
+        # {states : deadkeys}
         self.deadkeys = {}
 
-        # Dictionary {deadkey: (basekey, output)}
+        # {deadkey: (basekey, output)}
         self.keydict = {}
 
-        # A dictionary of dictionaries, collecting the outputs of
-        # every key in each individual state.
+        # A dict of dicts, collecting the outputs of every key
+        # in each individual state.
         self.outputdict = {}
 
         # Actions that do not yield immediate output, but shift to a new state.
         self.empty_actions = []
-        # Dictionary {keymap ID: modifier key}
+
+        # {keymap ID: modifier key}
         self.keymap_assignments = {}
 
         self.number_of_keymaps = 0
 
     def addKeys(self, key):
         self.key = key
-        self.keylist.append(key.data())
-        return self.keylist
+        self.key_list.append(key.data())
+        return self.key_list
 
     def addActions(self, action):
         self.action = action
@@ -275,19 +281,20 @@ class Parser(object):
                     self.checkSet(
                         states, keymap, cmdcaps_max, cmdcaps_min, 'cmdcaps')
                     self.checkSet(
-                        states, keymap, shiftcaps_max, shiftcaps_min, 'shiftcaps')
+                        states, keymap,
+                        shiftcaps_max, shiftcaps_min, 'shiftcaps')
 
             if parent.tag == 'keyMapSet':
                 keymapset_id = parent.attrib['id']
                 for child in parent:
                     keymap_index = child.attrib['index']
-                    for child in child:
-                        keycode = child.attrib['code']
-                        if child.get('action') is None:
+                    for grandchild in child:
+                        keycode = grandchild.attrib['code']
+                        if grandchild.get('action') is None:
                             type = 'output'
                         else:
                             type = 'action'
-                        output = child.get(type)
+                        output = grandchild.get(type)
                         myKey = Key(
                             keymapset_id, keymap_index, keycode, type, output)
                         self.addKeys(myKey)
@@ -295,30 +302,31 @@ class Parser(object):
             if parent.tag == 'actions':
                 for child in parent:
                     action_id = child.get('id')
-                    for child in child:
-                        if child.get('next') is None:
-                            type = 'output'
+                    for grandchild in child:
+                        if grandchild.get('next') is None:
+                            action_type = 'output'
                         else:
-                            type = 'next'
-                        state = child.get('state')
-                        result = child.get(type)
-                        myAction = Action(action_id, state, type, result)
+                            action_type = 'next'
+                        state = grandchild.get('state')
+                        result = grandchild.get(action_type)
+                        myAction = Action(
+                            action_id, state, action_type, result)
                         self.addActions(myAction)
 
-                        # Making a dictionary for key id to output.
+                        # Make a dictionary for key id to output.
                         # On the Mac keyboard, the 'a' for instance is often
                         # matched to an action, as it can produce
                         # agrave, aacute, etc.
-                        if [state, type] == ['none', 'output']:
+                        if [state, action_type] == ['none', 'output']:
                             self.action_basekeys[action_id] = result
 
         self.number_of_keymaps = max(idx_list)
-        # Yields the highest index assigned to a shift state - thus, the
+        # Yield the highest index assigned to a shift state - thus, the
         # number of shift states in the layout.
 
     def findDeadkeys(self):
         '''
-        Returns dictionary self.deadkeys: contains the state ID and the Unicode
+        Return dictionary self.deadkeys: contains the state id and the Unicode
         value of actual dead key.
         (for instance, 's3': '02c6' - state 3: circumflex)
         Returns list of ids for 'empty' actions:
@@ -328,35 +336,45 @@ class Parser(object):
         '''
 
         deadkey_id = 0
-        keylist = []
-        for [id, state, type, result] in self.actionlist:
-            if [state, type, result] == ['none', 'output', '0020']:
-                deadkey_id = id
-            if id == deadkey_id and result != '0020':
+        key_list = []
+        for [key_id, state, key_type, result] in self.actionlist:
+            if [state, key_type, result] == ['none', 'output', '0020']:
+                deadkey_id = key_id
+            if key_id == deadkey_id and result != '0020':
                 self.deadkeys[state] = result
 
-            if [state, type] == ['none', 'next']:
-                keylist.append([id, result])
-                self.empty_actions.append(id)
+            if [state, key_type] == ['none', 'next']:
+                key_list.append([key_id, result])
+                self.empty_actions.append(key_id)
 
-        for i in keylist:
+        for i in key_list:
             if i[1] in list(self.deadkeys.keys()):
                 i[1] = self.deadkeys[i[1]]
 
-        self.action_basekeys.update(dict(keylist))
-        # This is for adding the actual deadkeys (grave, acute etc)
+        # Add the actual deadkeys (grave, acute etc)
         # to the dict action_basekeys
+        self.action_basekeys.update(dict(key_list))
 
         return self.empty_actions
         return self.deadkeys
 
-    def actionMatcher(self):
+    def matchActions(self):
         '''
-        Returns a list and a dictionary:
-        Self.actionlist is extended by the base character, e.g.
-        ['6', 's1', 'output', '00c1', '0041'] % action id, state, type, Aacute, A
-        Self.action_basekeys are all the glyphs that can be combined
+        Return a list and a dictionary:
+
+        self.actionlist is extended by the base character, e.g.
+
+        [
+            '6', # action id
+            's1',  # state
+            'output',  # type
+            '00c1',  # Á
+            '0041'  # A
+        ]
+
+        self.action_basekeys are all the glyphs that can be combined
         with a dead key, e.g. A,E,I etc.
+
         '''
 
         for i in self.actionlist:
@@ -371,16 +389,16 @@ class Parser(object):
 
     def findOutputs(self):
         '''
-        Finding the real output values of all the keys, e.g. replacing the
-        action IDs in the XML keyboard layout with the unicodes they actually
-        return in their standard state.
+        Find the real output values of all the keys, e.g. replacing the
+        action IDs in the XML keyboard layout with the Unicode values they
+        actually return in their standard state.
         '''
 
-        for i in self.keylist:
+        for i in self.key_list:
             if i[4] in self.empty_actions:
-                i.append('@')
                 # If the key is a real dead key, mark it.
                 # This mark is used in 'makeOutputDict'.
+                i.append('@')
 
             if i[4] in self.action_basekeys:
                 i[3] = 'output'
@@ -392,9 +410,10 @@ class Parser(object):
         return self.outputlist
 
     def makeDeadKeyTable(self):
-        ''' Populates self.keydict, which maps a deadkey
-        (e.g. 02dc, circumflex) to (base character, accented character)) tuples
-        (e.g. 0041, 00c3 == A, Atilde)
+        '''
+        Populate self.keydict, which maps a deadkey
+        e.g. (02dc, circumflex) to (base character, accented character) tuples
+        e.g. 0041, 00c3 = A, Ã
         '''
 
         for i in self.actionlist:
@@ -438,9 +457,9 @@ class Parser(object):
             if len(i) == 5:
                 output = i[4]
             else:
-                output = i[4] + '@'
                 # The string for making clear that this key is a deadkey.
                 # Necessary in .klc files.
+                output = i[4] + '@'
 
             self.outputdict[key_id][keymap_id] = output
 
@@ -449,7 +468,7 @@ class Parser(object):
     def getOutput(self, dict, string):
         '''
         Used in next function, to find output per state, for every key.
-        If no output, it returns '-1' (a.k.a. not defined).
+        If no output, return '-1' (a.k.a. not defined).
         '''
 
         try:
@@ -499,19 +518,19 @@ class Parser(object):
             cmdcaps_output = self.getOutput(u, 'cmdcaps')
             shiftcaps_output = self.getOutput(u, 'shiftcaps')
 
-            # Checking if the caps lock output equals the shift key,
+            # Check if the caps lock output equals the shift key,
             # to set the caps lock status.
             if caps_output == default_output:
                 keytable[3] = '0'
             elif caps_output == shift_output:
                 keytable[3] = '1'
             else:
-                keytable[3] = 'SGCap'
                 # SGCaps are a Windows speciality, necessary if the caps lock
                 # state is different from shift.
                 # Usually, they accommodate an alternate writing system.
                 # SGCaps + Shift is possible, boosting the available
                 # shift states to 6.
+                keytable[3] = 'SGCap'
 
             keytable[4] = default_output
             keytable[5] = shift_output
@@ -538,7 +557,7 @@ class Parser(object):
 
     def writeDeadKeyTable(self):
         '''
-        Writes a summary of dead keys, their results in all intended
+        Write a summary of dead keys, their results in all intended
         combinations.
         '''
 
@@ -583,7 +602,7 @@ def readFile(path):
 
 def uni_from_char(character):
     '''
-    Returns a 4 or 5-digit Unicode hex string for the passed character.
+    Return a 4 or 5-digit Unicode hex string for the passed character.
     '''
 
     try:
@@ -636,7 +655,7 @@ def udata(unicodestring):
 
 def new_xml(file):
     '''
-    Creates a new XML file in memory.
+    Create a new XML file.
     Literal Unicode entities (&#x0000;) make the XML parser choke,
     that's why some replacement operations are necessary.
     Also, all literal output characters are converted to Unicode strings
@@ -651,10 +670,10 @@ def new_xml(file):
     for line in readFile(file):
 
         if line[:5] == '<?XML':
-            line = '<?xml%s' % line[5:]
             # This avoids the parser to fail right in the first line:
             # sometimes, files start with '<?XML' rather than '<?xml',
             # which causes mayhem.
+            line = '<?xml%s' % line[5:]
 
         if re.search(output_line, line):
             if re.search(uni_lig, line):
@@ -705,7 +724,7 @@ def run():
     keyboardData = Parser()
     keyboardData.parse(tree)
     keyboardData.findDeadkeys()
-    keyboardData.actionMatcher()
+    keyboardData.matchActions()
     keyboardData.findOutputs()
     keyboardData.makeDeadKeyTable()
     keyboardData.makeOutputDict()
@@ -748,8 +767,8 @@ def run():
 
     outputfile = codecs.open(
         os.sep.join((keyboard_path, filename)), 'w', 'utf-16')
-    for i in output:
-        outputfile.write(i)
+    for line in output:
+        outputfile.write(line)
         outputfile.write(os.linesep)
     outputfile.close()
 
