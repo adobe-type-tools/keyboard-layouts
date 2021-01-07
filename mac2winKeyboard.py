@@ -10,7 +10,7 @@ import unicodedata
 import xml.etree.ElementTree as ET
 
 
-d = {
+version_info = {
     'version': 'v 1.00',
     'date': 'November 15, 2011',
     'filler': '-' * 80,
@@ -62,7 +62,7 @@ contains periods or spaces, they are stripped, not being supported in MSKLC.
 Digits in the name (indicating a series) are preserved in the output file
 name.
 
-''' % d
+''' % version_info
 
 __usage__ = '''
 mac2winKeyboard %(version)s, %(date)s
@@ -84,9 +84,23 @@ USAGE:
     python mac2winKeyboard inputfile.keylayout
 
 
-''' % d
+''' % version_info
 
 __help__ = __doc__
+
+error_msg_conversion = (
+    'Could not convert composed character {}, '
+    'inserting replacement character ({}). Sorry.'
+)
+error_msg_filename = (
+    'Too many digits for a Windows-style (8+3) filename.'
+    'Please rename the source file.')
+
+error_msg_macwin_mismatch = (
+    "// No equivalent macOS code for Windows code {} ('{}'). Skipping.")
+
+error_msg_winmac_mismatch = (
+    "// Could not match Windows code {} ('{}') to Mac OS code {}. Skipping.")
 
 # company = 'Adobe Systems Incorporated'
 company = 'myCompany'
@@ -134,8 +148,14 @@ locale_name_long = 'Neutral (Neutral)'
 # more:
 # http://msdn.microsoft.com/en-us/library/windows/desktop/dd318693(v=vs.85).aspx
 
-os.linesep = '\r\n'  # This is important, as the resulting text file must be UTF-16 LE with Windows-style line breaks.
-replacement_char = '007E'  # Placeholder character for replacing 'ligatures' (more than one character mapped to one key), which are not supported by this conversion script.
+# Changing the line separator.
+# This is important, as the output klc file must be UTF-16 LE with
+# Windows-style line breaks.
+os.linesep = '\r\n'
+
+# Placeholder character for replacing 'ligatures' (more than one character
+# mapped to one key), which are not supported by this conversion script.
+replacement_char = '007E'
 
 class Key(object):
 
@@ -328,11 +348,12 @@ class Parser(object):
             if i[1] in list(self.deadkeys.keys()):
                 i[1] = self.deadkeys[i[1]]
 
-        self.action_basekeys.update(dict(keylist))  # This is for adding the actual deadkeys (grave, acute etc) to the dict action_basekeys
+        self.action_basekeys.update(dict(keylist))
+        # This is for adding the actual deadkeys (grave, acute etc)
+        # to the dict action_basekeys
 
         return self.empty_actions
         return self.deadkeys
-
 
     def actionMatcher(self):
         '''
@@ -353,7 +374,6 @@ class Parser(object):
         return self.actionlist
         return self.action_basekeys
 
-
     def findOutputs(self):
         '''
         Finding the real output values of all the keys, e.g. replacing the
@@ -363,7 +383,9 @@ class Parser(object):
 
         for i in self.keylist:
             if i[4] in self.empty_actions:
-                i.append('@')  # If the key is a real dead key, mark it. This mark is being used in 'makeOutputDict'.
+                i.append('@')
+                # If the key is a real dead key, mark it.
+                # This mark is used in 'makeOutputDict'.
 
             if i[4] in self.action_basekeys:
                 i[3] = 'output'
@@ -373,7 +395,6 @@ class Parser(object):
                 self.outputlist.append(i)
 
         return self.outputlist
-
 
     def makeDeadKeyTable(self):
         ''' Populates self.keydict, which maps a deadkey
@@ -422,7 +443,9 @@ class Parser(object):
             if len(i) == 5:
                 output = i[4]
             else:
-                output = i[4] + '@'  # The string for making clear that this key is a deadkey. Necessary in .klc files.
+                output = i[4] + '@'
+                # The string for making clear that this key is a deadkey.
+                # Necessary in .klc files.
 
             self.outputdict[key_id][keymap_id] = output
 
@@ -446,11 +469,11 @@ class Parser(object):
             nwin = int(d, 16)
 
             if nwin not in winmac:
-                print("// No equivalent Mac OS code for Windows code %s ('%s'). Skipping." % (nwin, windata[d]))
+                print(error_msg_macwin_mismatch.format(nwin, windata[d]))
                 continue
             n = winmac[nwin]
             if n not in self.outputdict:
-                print("// Could not match Windows code %s ('%s') to Mac OS code %s. Skipping." % (nwin, windata[d], n))
+                print(error_msg_winmac_mismatch.format(nwin, windata[d], n))
                 continue
 
             u = self.outputdict[n]
@@ -479,15 +502,19 @@ class Parser(object):
             cmdcaps_output = self.getOutput(u, 'cmdcaps')
             shiftcaps_output = self.getOutput(u, 'shiftcaps')
 
-            # Checking if the caps lock output equals the shift key, to set the caps lock status.
+            # Checking if the caps lock output equals the shift key,
+            # to set the caps lock status.
             if caps_output == default_output:
                 keytable[3] = '0'
             elif caps_output == shift_output:
                 keytable[3] = '1'
             else:
                 keytable[3] = 'SGCap'
-                # SGCaps are a Windows speciality, necessary if the caps lock state is different from shift.
-                # Usually, they accommodate an alternate writing system. SGCaps + Shift is possible, boosting the available shift states to 6.
+                # SGCaps are a Windows speciality, necessary if the caps lock
+                # state is different from shift.
+                # Usually, they accommodate an alternate writing system.
+                # SGCaps + Shift is possible, boosting the available
+                # shift states to 6.
 
             keytable[4] = default_output
             keytable[5] = shift_output
@@ -598,11 +625,11 @@ def uni_from_char(string):
         # made to insert a placeholder character instead.
 
     except TypeError:
-        print('Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (string, udata(replacement_char)))
+        print(error_msg_conversion.format(string, udata(replacement_char)))
         return replacement_char
 
     except ValueError:
-        print('Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (string, udata(replacement_char)))
+        print(error_msg_conversion.format(string, udata(replacement_char)))
         return replacement_char
 
 
@@ -653,11 +680,15 @@ def new_xml(file):
 
         if line[:5] == '<?XML':
             line = '<?xml%s' % line[5:]
-            # This avoids the parser to fail right in the first line: sometimes, files start with '<?XML' rather than '<?xml', which causes mayhem.
+            # This avoids the parser to fail right in the first line:
+            # sometimes, files start with '<?XML' rather than '<?xml',
+            # which causes mayhem.
 
         if re.search(output_line, line):
             if re.search(uni_lig, line):
-                print('Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (re.search(uni_lig, line).group(1), udata(replacement_char)))
+                print(error_msg_conversion.format(
+                    re.search(uni_lig, line).group(1),
+                    udata(replacement_char)))
                 line = re.sub(uni_lig, replacement_char, line)
             elif re.search(uni_value, line):
                 line = re.sub(uni_value, r'\1', line)
@@ -736,7 +767,7 @@ def run():
     if digit_m:
         trunc = 8 - len(digit_m.group(1))
         if trunc <= 0:
-            print('Too many digits for a Windows-style (8+3) filename. Please rename the source file.')
+            print(error_msg_filename)
             sys.exit()
         else:
             filename = '%s%s.klc' % (filename[:trunc], digit_m.group(1))
