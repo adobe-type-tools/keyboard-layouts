@@ -724,21 +724,15 @@ def make_klc_filename(keyboard_name):
     return filename
 
 
-### THE ACTUAL FUNCTION ###
-
-def run():
-
+if __name__ == "__main__":
     if '-u' in sys.argv:
-        print(__usage__)
-        return
+        sys.exit(__usage__)
 
     if "-h" in sys.argv:
-        print(__help__)
-        return
+        sys.exit(__help__)
 
     if "-d" in sys.argv:
-        print(__doc__)
-        return
+        sys.exit(__doc__)
 
     inputfile = sys.argv[1]
     if inputfile.split('.')[1] != 'keylayout':
@@ -746,7 +740,7 @@ def run():
         print('Input file not recognized.')
         print('Please use an XML-based *.keylayout file.')
         print()
-        return
+        sys.exit()
 
     newxml = new_xml(inputfile)
     tree = ET.XML(newxml)
@@ -776,7 +770,3 @@ def run():
     outputfile.close()
 
     print('done')
-
-
-if __name__ == "__main__":
-    run()
