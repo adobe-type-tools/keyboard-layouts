@@ -4,7 +4,6 @@ Convert macOS keyboard layout files (.keylayout) to
 equivalent Windows files (.klc).
 '''
 
-
 import os
 import re
 import sys
@@ -52,23 +51,23 @@ replacement_char = '007E'
 
 class Key(object):
 
-    def __init__(self, keymapset, keyindex, keycode, keytype, result):
+    def __init__(self, keymap_set, key_index, key_code, key_type, result):
 
-        self.keymapset = keymapset
-        self.keyindex = keyindex
-        self.keycode = keycode
-        self.keytype = keytype
+        self.keymap_set = keymap_set
+        self.key_index = key_index
+        self.key_code = key_code
+        self.key_type = key_type
         self.result = result
-        self.output = []
 
     def data(self):
 
         self.output = [
-            str(self.keymapset),
-            int(self.keyindex),
-            int(self.keycode),
-            str(self.keytype),
+            str(self.keymap_set),
+            int(self.key_index),
+            int(self.key_code),
+            str(self.key_type),
             self.result]
+
         return self.output
 
 
@@ -90,17 +89,17 @@ class Action(object):
         return output
 
 
-class Parser(object):
+class KeylaoutParser(object):
 
     def __init__(self):
         # Raw keys as they are in the layout XML
         self.key_list = []
 
         # Raw list of actions collected from layout XML
-        self.actionlist = []
+        self.action_list = []
 
         # Key output when state is None
-        self.outputlist = []
+        self.output_list = []
 
         # Contains action IDs and the actual base keys (e.g. 'a', 'c' etc.)
         self.action_basekeys = {}
@@ -109,11 +108,11 @@ class Parser(object):
         self.deadkeys = {}
 
         # {deadkey: (basekey, output)}
-        self.keydict = {}
+        self.key_dict = {}
 
         # A dict of dicts, collecting the outputs of every key
         # in each individual state.
-        self.outputdict = {}
+        self.output_dict = {}
 
         # Actions that do not yield immediate output, but shift to a new state.
         self.empty_actions = []
@@ -130,8 +129,8 @@ class Parser(object):
 
     def addActions(self, action):
         self.action = action
-        self.actionlist.append(action.data())
-        return self.actionlist
+        self.action_list.append(action.data())
+        return self.action_list
 
     def checkSet(self, states, keymap, maxset, minset, string):
         '''
@@ -205,14 +204,14 @@ class Parser(object):
                 for child in parent:
                     keymap_index = child.attrib['index']
                     for grandchild in child:
-                        keycode = grandchild.attrib['code']
+                        key_code = grandchild.attrib['code']
                         if grandchild.get('action') is None:
                             type = 'output'
                         else:
                             type = 'action'
                         output = grandchild.get(type)
                         myKey = Key(
-                            keymapset_id, keymap_index, keycode, type, output)
+                            keymapset_id, keymap_index, key_code, type, output)
                         self.addKeys(myKey)
 
             if parent.tag == 'actions':
@@ -253,7 +252,7 @@ class Parser(object):
 
         deadkey_id = 0
         key_list = []
-        for [key_id, state, key_type, result] in self.actionlist:
+        for [key_id, state, key_type, result] in self.action_list:
             if [state, key_type, result] == ['none', 'output', '0020']:
                 deadkey_id = key_id
             if key_id == deadkey_id and result != '0020':
@@ -278,7 +277,7 @@ class Parser(object):
         '''
         Return a list and a dictionary:
 
-        self.actionlist is extended by the base character, e.g.
+        self.action_list is extended by the base character, e.g.
 
         [
             '6', # action id
@@ -293,14 +292,14 @@ class Parser(object):
 
         '''
 
-        for i in self.actionlist:
+        for i in self.action_list:
             if [i[1], i[2]] == ['none', 'output']:
                 self.action_basekeys[i[0]] = i[3]
 
             if i[0] in list(self.action_basekeys.keys()):
                 i.append(self.action_basekeys[i[0]])
 
-        return self.actionlist
+        return self.action_list
         return self.action_basekeys
 
     def findOutputs(self):
@@ -319,20 +318,21 @@ class Parser(object):
             if i[4] in self.action_basekeys:
                 i[3] = 'output'
                 i[4] = self.action_basekeys[i[4]]
-                self.outputlist.append(i)
+                self.output_list.append(i)
             else:
-                self.outputlist.append(i)
+                self.output_list.append(i)
 
-        return self.outputlist
+        return self.output_list
 
     def makeDeadKeyTable(self):
         '''
-        Populate self.keydict, which maps a deadkey
+        Populate self.key_dict, which maps a deadkey
         e.g. (02dc, circumflex) to (base character, accented character) tuples
         e.g. 0041, 00c3 = A, Ã
         '''
 
-        for i in self.actionlist:
+        for i in self.action_list:
+            print(i)
             if i[1] in list(self.deadkeys.keys()):
                 i.append(self.deadkeys[i[1]])
 
@@ -340,12 +340,12 @@ class Parser(object):
                 deadkey = i[5]
                 basekey = i[4]
                 result = i[3]
-                if deadkey in self.keydict:
-                    self.keydict[deadkey].append((basekey, result))
+                if deadkey in self.key_dict:
+                    self.key_dict[deadkey].append((basekey, result))
                 else:
-                    self.keydict[deadkey] = [(basekey, result)]
+                    self.key_dict[deadkey] = [(basekey, result)]
 
-        return self.keydict
+        return self.key_dict
 
     def makeOutputDict(self):
         '''
@@ -354,19 +354,19 @@ class Parser(object):
         Here, the filtering occurs:
         '''
 
-        first_keymapset = self.outputlist[0][0]
-        for i in self.outputlist:
+        first_keymapset = self.output_list[0][0]
+        for i in self.output_list:
             if i[0] != first_keymapset:
-                self.outputlist.remove(i)
+                self.output_list.remove(i)
             key_id = i[2]
 
             li = []
             for i in range(self.number_of_keymaps + 1):
                 li.append([i, '-1'])
-                self.outputdict[key_id] = dict(li)
+                self.output_dict[key_id] = dict(li)
 
-        for i in self.outputlist:
-            keymapset = i[0]
+        for i in self.output_list:
+            keymap_set = i[0]
             keymap_id = i[1]
             key_id = i[2]
 
@@ -377,9 +377,9 @@ class Parser(object):
                 # Necessary in .klc files.
                 output = i[4] + '@'
 
-            self.outputdict[key_id][keymap_id] = output
+            self.output_dict[key_id][keymap_id] = output
 
-        return self.outputdict
+        return self.output_dict
 
     def getOutput(self, dict, string):
         '''
@@ -402,11 +402,11 @@ class Parser(object):
                 print(error_msg_macwin_mismatch.format(nwin, win_keycodes[d]))
                 continue
             n = win_to_mac_keycodes[nwin]
-            if n not in self.outputdict:
+            if n not in self.output_dict:
                 print(error_msg_winmac_mismatch.format(nwin, win_keycodes[d], n))
                 continue
 
-            u = self.outputdict[n]
+            u = self.output_dict[n]
 
             # Keytable follows the syntax of the .klc file.
             # The columns are as follows:
@@ -478,14 +478,14 @@ class Parser(object):
         '''
 
         output = ['']
-        for i in list(self.keydict.keys()):
+        for i in list(self.key_dict.keys()):
             output.extend([''])
             output.append('DEADKEY\t%s' % i)
             output.append('')
 
-            for j in self.keydict[i]:
+            for j in self.key_dict[i]:
                 string = '%s\t%s\t// %s -> %s' % (
-                    j[0], j[1], charFromUnicode(j[0]), charFromUnicode(j[1]))
+                    j[0], j[1], char_from_unicode(j[0]), char_from_unicode(j[1]))
                 output.append(string)
         return output
 
@@ -505,7 +505,7 @@ class Parser(object):
 
 ### HELPER FUNCTIONS ###
 
-def readFile(path):
+def read_file(path):
     '''
     Read a file, make list of the lines, close the file.
     '''
@@ -540,33 +540,33 @@ def uni_from_char(character):
         return replacement_char
 
 
-def charFromUnicode(unicodestring):
+def char_from_unicode(unicode_string):
     '''
     Return character from a Unicode code point.
     '''
 
-    if len(unicodestring) > 5:
-        return unicodestring
+    if len(unicode_string) > 5:
+        return unicode_string
     else:
-        return chr(int(unicodestring, 16))
+        return chr(int(unicode_string, 16))
 
 
-def udata(unicodestring):
+def udata(unicode_string):
     '''
     Return description of characters, e.g. 'DIGIT ONE', 'EXCLAMATION MARK' etc.
     '''
 
-    if unicodestring in ['-1', '']:
+    if unicode_string in ['-1', '']:
         return '<none>'
-    if unicodestring.endswith('@'):
-        unicodestring = unicodestring[0:-1]
+    if unicode_string.endswith('@'):
+        unicode_string = unicode_string[0:-1]
     else:
-        unicodestring = unicodestring
+        unicode_string = unicode_string
 
     try:
-        return unicodedata.name(charFromUnicode(unicodestring))
+        return unicodedata.name(char_from_unicode(unicode_string))
     except ValueError:
-        return 'PUA %s' % (unicodestring)
+        return 'PUA %s' % (unicode_string)
 
 
 def new_xml(file):
@@ -583,7 +583,7 @@ def new_xml(file):
     uni_value = re.compile(r'&#x([a-fA-F0-9]{4,6});')
     uni_lig = re.compile(r'((&#x[a-fA-F0-9]{4};){2,})')
 
-    for line in readFile(file):
+    for line in read_file(file):
 
         if line[:5] == '<?XML':
             # This avoids the parser to fail right in the first line:
@@ -646,14 +646,14 @@ def process_input_keylayout(input_file):
     newxml = new_xml(input_file)
     tree = ET.XML(newxml)
 
-    keyboardData = Parser()
-    keyboardData.parse(tree)
-    keyboardData.findDeadkeys()
-    keyboardData.matchActions()
-    keyboardData.findOutputs()
-    keyboardData.makeDeadKeyTable()
-    keyboardData.makeOutputDict()
-    return keyboardData
+    keyboard_data = KeylaoutParser()
+    keyboard_data.parse(tree)
+    keyboard_data.findDeadkeys()
+    keyboard_data.matchActions()
+    keyboard_data.findOutputs()
+    keyboard_data.makeDeadKeyTable()
+    keyboard_data.makeOutputDict()
+    return keyboard_data
 
 
 def make_klc_metadata(keyboard_name):
@@ -670,8 +670,12 @@ def make_klc_metadata(keyboard_name):
     return klc_prefix, klc_suffix
 
 
-def make_keyboard_name(input_file):
-    return input_file[:-10].split(os.sep)[-1]
+def make_keyboard_name(input_path):
+    '''
+    Return the base name of the .keylayout file
+    '''
+    input_file = os.path.basename(input_path)
+    return os.path.splitext(input_file)[0]
 
 
 def verify_input_file(parser, input_file):
@@ -706,7 +710,7 @@ if __name__ == '__main__':
     args = get_args()
     input_file = args.input
     output_dir = os.path.abspath(os.path.dirname(input_file))
-    keyboardData = process_input_keylayout(input_file)
+    keyboard_data = process_input_keylayout(input_file)
 
     keyboard_name = make_keyboard_name(input_file)
     klc_prefix, klc_suffix = make_klc_metadata(keyboard_name)
@@ -714,17 +718,17 @@ if __name__ == '__main__':
 
     output = []
     output.extend(klc_prefix.splitlines())
-    output.extend(keyboardData.writeKeyTable())
-    output.extend(keyboardData.writeDeadKeyTable())
+    output.extend(keyboard_data.writeKeyTable())
+    output.extend(keyboard_data.writeDeadKeyTable())
     output.extend(klc_keynames)
-    output.extend(keyboardData.writeKeynameDead())
+    output.extend(keyboard_data.writeKeynameDead())
     output.extend(klc_suffix.splitlines())
 
-    outputfile = codecs.open(
+    output_file = codecs.open(
         os.sep.join((output_dir, klc_filename)), 'w', 'utf-16')
     for line in output:
-        outputfile.write(line)
-        outputfile.write(os.linesep)
-    outputfile.close()
+        output_file.write(line)
+        output_file.write(os.linesep)
+    output_file.close()
 
     print('done')
