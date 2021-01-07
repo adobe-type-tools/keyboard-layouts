@@ -1,10 +1,11 @@
 #!/bin/env python
 
-import codecs
 import os
 import re
 import sys
 import time
+
+import codecs
 import unicodedata
 
 import xml.etree.ElementTree as ET
@@ -89,7 +90,7 @@ OPTIONS:
 USAGE:
 %(filler)s
 
-    python mac2winKeyboard inputfile.keylayout
+    python mac2winKeyboard input_file.keylayout
 
 
 ''' % version_info
@@ -111,14 +112,7 @@ error_msg_winmac_mismatch = (
     "// Could not match Windows code {} ('{}') to Mac OS code {}. Skipping.")
 
 
-# company = 'Adobe Systems Incorporated'
-company = 'myCompany'
-year = time.localtime()[0]
-keyboard_name = sys.argv[1][:-10].split(os.sep)[-1]
-keyboard_path = os.getcwd()
-
-
-# Changing the line separator.
+# Change the line separator.
 # This is important, as the output klc file must be UTF-16 LE with
 # Windows-style line breaks.
 os.linesep = '\r\n'
@@ -126,12 +120,6 @@ os.linesep = '\r\n'
 # Placeholder character for replacing 'ligatures' (more than one character
 # mapped to one key), which are not supported by this conversion script.
 replacement_char = '007E'
-
-klc_prefix = klc_prefix_dummy.format(
-    locale_tag, keyboard_name, year, company, company,
-    locale_name, locale_id_long)
-klc_suffix = klc_suffix_dummy.format(
-    locale_id, keyboard_name, locale_id, locale_name_long)
 
 
 class Key(object):
@@ -696,19 +684,21 @@ def new_xml(file):
 
 def make_klc_filename(keyboard_name):
     '''
-    Windows .dll files allow for 8-character file names only, the output
-    file name is truncated. If the input file name contains a number (being
-    part of a series), this number is appended to the end of the output file
-    name. If this number is longer than 8 digits, the script will gently
+    Windows .dll files allow for 8-character file names only, which is why the
+    output file name is truncated. If the input file name contains a number
+    (being part of a series), this number is appended to the end of the output
+    file name. If this number is longer than 8 digits, the script will gently
     ask to modify the input file name.
 
     Periods and spaces in the file name are not supported; MSKLC will not
     build the .dll if the .klc has any.
-    This is why they are being stripped here:
+    This is why they are stripped here.
     '''
 
+    # strip periods and spaces
     filename = re.sub(r'[. ]', '', keyboard_name)
 
+    # find digits in file name
     rx_digit = re.compile(r'(\d+)')
     match_digit = rx_digit.search(filename)
 
@@ -724,7 +714,25 @@ def make_klc_filename(keyboard_name):
     return filename
 
 
-if __name__ == "__main__":
+def make_klc_metadata(keyboard_name):
+
+    # company = 'Adobe Systems Incorporated'
+    company = 'myCompany'
+    year = time.localtime()[0]
+
+    klc_prefix = klc_prefix_dummy.format(
+        locale_tag, keyboard_name, year, company, company,
+        locale_name, locale_id_long)
+    klc_suffix = klc_suffix_dummy.format(
+        locale_id, keyboard_name, locale_id, locale_name_long)
+    return klc_prefix, klc_suffix
+
+
+def make_keyboard_name(input_file):
+    return input_file[:-10].split(os.sep)[-1]
+
+
+if __name__ == '__main__':
     if '-u' in sys.argv:
         sys.exit(__usage__)
 
@@ -734,15 +742,16 @@ if __name__ == "__main__":
     if "-d" in sys.argv:
         sys.exit(__doc__)
 
-    inputfile = sys.argv[1]
-    if inputfile.split('.')[1] != 'keylayout':
+    input_file = sys.argv[1]
+    if input_file.split('.')[1] != 'keylayout':
         print()
         print('Input file not recognized.')
         print('Please use an XML-based *.keylayout file.')
         print()
         sys.exit()
+    output_dir = os.path.abspath(os.path.dirname(input_file))
 
-    newxml = new_xml(inputfile)
+    newxml = new_xml(input_file)
     tree = ET.XML(newxml)
 
     keyboardData = Parser()
@@ -753,6 +762,10 @@ if __name__ == "__main__":
     keyboardData.makeDeadKeyTable()
     keyboardData.makeOutputDict()
 
+    keyboard_name = make_keyboard_name(input_file)
+    klc_prefix, klc_suffix = make_klc_metadata(keyboard_name)
+    klc_filename = make_klc_filename(keyboard_name)
+
     output = []
     output.extend(klc_prefix.splitlines())
     output.extend(keyboardData.writeKeyTable())
@@ -761,9 +774,8 @@ if __name__ == "__main__":
     output.extend(keyboardData.writeKeynameDead())
     output.extend(klc_suffix.splitlines())
 
-    klc_filename = make_klc_filename(keyboard_name)
     outputfile = codecs.open(
-        os.sep.join((keyboard_path, klc_filename)), 'w', 'utf-16')
+        os.sep.join((output_dir, klc_filename)), 'w', 'utf-16')
     for line in output:
         outputfile.write(line)
         outputfile.write(os.linesep)
