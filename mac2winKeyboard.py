@@ -694,6 +694,36 @@ def new_xml(file):
     return '\r'.join(newxml)
 
 
+def make_klc_filename(keyboard_name):
+    '''
+    Windows .dll files allow for 8-character file names only, the output
+    file name is truncated. If the input file name contains a number (being
+    part of a series), this number is appended to the end of the output file
+    name. If this number is longer than 8 digits, the script will gently
+    ask to modify the input file name.
+
+    Periods and spaces in the file name are not supported; MSKLC will not
+    build the .dll if the .klc has any.
+    This is why they are being stripped here:
+    '''
+
+    filename = re.sub(r'[. ]', '', keyboard_name)
+
+    rx_digit = re.compile(r'(\d+)')
+    match_digit = rx_digit.search(filename)
+
+    if match_digit:
+        trunc = 8 - len(match_digit.group(1))
+        if trunc <= 0:
+            print(error_msg_filename)
+            sys.exit()
+        else:
+            filename = '%s%s.klc' % (filename[:trunc], match_digit.group(1))
+    else:
+        filename = '%s.klc' % (filename[:8])
+    return filename
+
+
 ### THE ACTUAL FUNCTION ###
 
 def run():
@@ -737,36 +767,9 @@ def run():
     output.extend(keyboardData.writeKeynameDead())
     output.extend(klc_suffix.splitlines())
 
-
-### FILE HANDLING ###
-
-    # As the Windows .dll files allow for 8-digit file names only, the output
-    # file name is truncated. If the input file name contains a number (being
-    # part of a series), this number is appended to the end of the output file
-    # name. If this number is longer than 8 digits, the script will gently
-    # ask to modify the input file name.
-
-    # Periods and spaces in the file name are not supported; MSKLC will not
-    # build the .dll if the .klc has any.
-    # This is why they are being stripped here:
-
-    filename = re.sub(r'[. ]', '', keyboard_name)
-
-    digit = re.compile(r'(\d+)')
-    digit_m = digit.search(filename)
-
-    if digit_m:
-        trunc = 8 - len(digit_m.group(1))
-        if trunc <= 0:
-            print(error_msg_filename)
-            sys.exit()
-        else:
-            filename = '%s%s.klc' % (filename[:trunc], digit_m.group(1))
-    else:
-        filename = '%s.klc' % (filename[:8])
-
+    klc_filename = make_klc_filename(keyboard_name)
     outputfile = codecs.open(
-        os.sep.join((keyboard_path, filename)), 'w', 'utf-16')
+        os.sep.join((keyboard_path, klc_filename)), 'w', 'utf-16')
     for line in output:
         outputfile.write(line)
         outputfile.write(os.linesep)
