@@ -8,9 +8,14 @@ import time
 import unicodedata
 
 import xml.etree.ElementTree as ET
+
+# local modules
 from klc_data import (
     win_to_mac_keycodes, win_keycodes,
     klc_keynames, klc_prefix_dummy, klc_suffix_dummy
+)
+from locale import (
+    locale_id, locale_id_long, locale_tag, locale_name, locale_name_long,
 )
 
 version_info = {
@@ -113,45 +118,6 @@ keyboard_name = sys.argv[1][:-10].split(os.sep)[-1]
 keyboard_path = os.getcwd()
 
 
-# Neutral:
-# --------
-
-locale_id = '0000'
-locale_id_long = '00000000'
-name = 'NE'
-locale_name = 'ne-NE'
-locale_name_long = 'Neutral (Neutral)'
-
-# US English:
-# -----------
-
-# locale_id = '0409'
-# locale_id_long = '00000409'
-# name = 'US'
-# locale_name = 'en-US'
-# locale_name_long = 'English (US)'
-
-# German:
-# -------
-
-# locale_id = '0C07'
-# locale_id_long = '00000C07'
-# name = 'DE'
-# locale_name = 'de-DE'
-# locale_name_long = 'German (DE)'
-
-# French:
-# -------
-
-# locale_id = '080C'
-# locale_id_long = '0000080C'
-# name = 'FR'
-# locale_name = 'fr-FR'
-# locale_name_long = 'French (FR)'
-
-# more:
-# http://msdn.microsoft.com/en-us/library/windows/desktop/dd318693(v=vs.85).aspx
-
 # Changing the line separator.
 # This is important, as the output klc file must be UTF-16 LE with
 # Windows-style line breaks.
@@ -162,7 +128,8 @@ os.linesep = '\r\n'
 replacement_char = '007E'
 
 klc_prefix = klc_prefix_dummy.format(
-    name, keyboard_name, year, company, company, locale_name, locale_id_long)
+    locale_tag, keyboard_name, year, company, company,
+    locale_name, locale_id_long)
 klc_suffix = klc_suffix_dummy.format(
     locale_id, keyboard_name, locale_id, locale_name_long)
 
