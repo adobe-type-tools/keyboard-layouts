@@ -1,10 +1,16 @@
 #!/bin/env python
+'''
+Convert macOS keyboard layout files (.keylayout) to
+equivalent Windows files (.klc).
+'''
+
 
 import os
 import re
 import sys
 import time
 
+import argparse
 import codecs
 import unicodedata
 
@@ -15,87 +21,9 @@ from klc_data import (
     win_to_mac_keycodes, win_keycodes,
     klc_keynames, klc_prefix_dummy, klc_suffix_dummy
 )
-from locale import (
+from locale_data import (
     locale_id, locale_id_long, locale_tag, locale_name, locale_name_long,
 )
-
-version_info = {
-    'version': 'v 1.00',
-    'date': 'November 15, 2011',
-    'filler': '-' * 80,
-}
-
-# -----------------------------------------------------------------------------
-
-__doc__ = '''\
-mac2winKeyboard %(version)s, %(date)s
-%(filler)s
-This Python script is intended for converting Mac keyboard layouts to Windows
-.klc files, the input format for "Microsoft Keyboard Layout Creator" (MSKLC).
-The resulting .klc files reflect the Mac keyboard layout, and can be used in
-MSKLC to compile working keyboard layouts for Windows. Should any further
-modifications be desired, the .klc files can also be edited with a text editor.
-
-%(filler)s
-Originally created for converting a bulk of Pi font keyboard layouts, this
-script proved being useful for converting other, 'normal' layouts as well,
-so the decision was made to make the script publicly available.
-
-DISCLAIMER:
-%(filler)s
-This script tries to convert keyboard layouts from Mac to Windows as verbatim
-as possible. Still, it is far from a linguistically accurate tool: Some of the
-niceties possible in both Mac and Win keyboard layouts are not supported - for
-instance, 'ligatures'. Nevertheless, it is assumed that this script will at
-least help producing good base data to be extended on.
-
-For now, 'ligatures' (2 or more characters assigned to one key) are not
-supported in this conversion script. Ligature support on Windows keyboards is
-spotty (no ligatures in Caps Lock states, for instance), and limited to four
-characters per key. Used in very few keyboard layouts only, the decision was
-made to insert a placeholder character instead.
-
-Also, some shift states might be dropped in the conversion. This is necessary,
-as Windows only supports six shift states, two of them with reduced features.
-
-USAGE:
-%(filler)s
-(Example for converting the input file "special.keylayout"):
-
-    python mac2winKeyboard.py special.keylayout
-
-No further options or triggers are needed.
-The output .klc file will be generated alongside the input file, the name will
-be truncated to a Windows-style 8+3-digit file name. If the original file name
-contains periods or spaces, they are stripped, not being supported in MSKLC.
-Digits in the name (indicating a series) are preserved in the output file
-name.
-
-''' % version_info
-
-__usage__ = '''
-mac2winKeyboard %(version)s, %(date)s
-
-Converts Mac keyboard layout files (.keylayout) to
-equivalent Windows files (.klc).
-
-OPTIONS:
-%(filler)s
-
-    python mac2winKeyboard [-u] [-h]
-
-    -u  : write usage
-    -h  : show help for further explanation.
-
-USAGE:
-%(filler)s
-
-    python mac2winKeyboard input_file.keylayout
-
-
-''' % version_info
-
-__help__ = __doc__
 
 error_msg_conversion = (
     'Could not convert composed character {}, '
@@ -714,6 +642,20 @@ def make_klc_filename(keyboard_name):
     return filename
 
 
+def process_input_keylayout(input_file):
+    newxml = new_xml(input_file)
+    tree = ET.XML(newxml)
+
+    keyboardData = Parser()
+    keyboardData.parse(tree)
+    keyboardData.findDeadkeys()
+    keyboardData.matchActions()
+    keyboardData.findOutputs()
+    keyboardData.makeDeadKeyTable()
+    keyboardData.makeOutputDict()
+    return keyboardData
+
+
 def make_klc_metadata(keyboard_name):
 
     # company = 'Adobe Systems Incorporated'
@@ -732,35 +674,39 @@ def make_keyboard_name(input_file):
     return input_file[:-10].split(os.sep)[-1]
 
 
+def verify_input_file(parser, input_file):
+    '''
+    Check if the input file exists, and if the suffix is .keylayout
+
+    https://stackoverflow.com/a/15203955
+    '''
+    if not os.path.exists(input_file):
+        parser.error('This input file does not exist')
+
+    suffix = os.path.splitext(input_file)[-1]
+
+    if suffix.lower() != '.keylayout':
+        parser.error('Please use a xml-based .keylayout file')
+    return input_file
+
+def get_args():
+
+    parser = argparse.ArgumentParser(
+        description=__doc__)
+
+    parser.add_argument(
+        'input',
+        type=lambda input_file: verify_input_file(parser, input_file),
+        help='input .keylayout file')
+
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
-    if '-u' in sys.argv:
-        sys.exit(__usage__)
-
-    if "-h" in sys.argv:
-        sys.exit(__help__)
-
-    if "-d" in sys.argv:
-        sys.exit(__doc__)
-
-    input_file = sys.argv[1]
-    if input_file.split('.')[1] != 'keylayout':
-        print()
-        print('Input file not recognized.')
-        print('Please use an XML-based *.keylayout file.')
-        print()
-        sys.exit()
+    args = get_args()
+    input_file = args.input
     output_dir = os.path.abspath(os.path.dirname(input_file))
-
-    newxml = new_xml(input_file)
-    tree = ET.XML(newxml)
-
-    keyboardData = Parser()
-    keyboardData.parse(tree)
-    keyboardData.findDeadkeys()
-    keyboardData.matchActions()
-    keyboardData.findOutputs()
-    keyboardData.makeDeadKeyTable()
-    keyboardData.makeOutputDict()
+    keyboardData = process_input_keylayout(input_file)
 
     keyboard_name = make_keyboard_name(input_file)
     klc_prefix, klc_suffix = make_klc_metadata(keyboard_name)
