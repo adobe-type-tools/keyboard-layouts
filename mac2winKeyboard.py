@@ -1,33 +1,44 @@
 #!/bin/env python
 
+import codecs
+import os
+import re
+import sys
+import time
+import unicodedata
+
+import xml.etree.ElementTree as ET
+
 
 d = {
-'version': 'v 1.00',
-'date': 'November 15, 2011',
-'filler': '-' * 80,
+    'version': 'v 1.00',
+    'date': 'November 15, 2011',
+    'filler': '-' * 80,
 }
 
-__copyright__ =  '''\
+__copyright__ = '''\
 Copyright (c) 2011 Adobe Systems Incorporated
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
 the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 '''
-#-------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
 
 __doc__ = '''\
 mac2winKeyboard %(version)s, %(date)s
@@ -45,8 +56,8 @@ so the decision was made to make the script publicly available.
 
 DISCLAIMER:
 %(filler)s
-This script tries to convert keyboard layouts from Mac to Windows as verbatim as
-possible. Still, it is far from a linguistically accurate tool: Some of the
+This script tries to convert keyboard layouts from Mac to Windows as verbatim
+as possible. Still, it is far from a linguistically accurate tool: Some of the
 niceties possible in both Mac and Win keyboard layouts are not supported - for
 instance, 'ligatures'. Nevertheless, it is assumed that this script will at
 least help producing good base data to be extended on.
@@ -69,15 +80,17 @@ USAGE:
 No further options or triggers are needed.
 The output .klc file will be generated alongside the input file, the name will
 be truncated to a Windows-style 8+3-digit file name. If the original file name
-contains periods and/or spaces, they are stripped, not being supported in MSKLC.
-Digits in the name (indicating a series), those are preserved in the output file
+contains periods or spaces, they are stripped, not being supported in MSKLC.
+Digits in the name (indicating a series) are preserved in the output file
 name.
 
 ''' % d
 
 __usage__ = '''
 mac2winKeyboard %(version)s, %(date)s
-Converts Mac keyboard layout files (.keylayout) to equivalent Windows files (.klc).
+
+Converts Mac keyboard layout files (.keylayout) to
+equivalent Windows files (.klc).
 
 OPTIONS:
 %(filler)s
@@ -97,21 +110,15 @@ USAGE:
 
 __help__ = __doc__
 
-
-
-
-import xml.etree.ElementTree as ET
-from xml.etree.ElementTree import Element, SubElement
-import sys, time, re, os
-import unicodedata, codecs
-
-#company = 'Adobe Systems Incorporated'
+# company = 'Adobe Systems Incorporated'
 company = 'myCompany'
 year = time.localtime()[0]
 keyboard_name = sys.argv[1][:-10].split(os.sep)[-1]
 keyboard_path = os.getcwd()
 
-### Neutral:
+
+# Neutral:
+# --------
 
 locale_id = '0000'
 locale_id_long = '00000000'
@@ -119,7 +126,8 @@ name = 'NE'
 locale_name = 'ne-NE'
 locale_name_long = 'Neutral (Neutral)'
 
-### US English:
+# US English:
+# -----------
 
 # locale_id = '0409'
 # locale_id_long = '00000409'
@@ -127,7 +135,8 @@ locale_name_long = 'Neutral (Neutral)'
 # locale_name = 'en-US'
 # locale_name_long = 'English (US)'
 
-### German:
+# German:
+# -------
 
 # locale_id = '0C07'
 # locale_id_long = '00000C07'
@@ -135,7 +144,8 @@ locale_name_long = 'Neutral (Neutral)'
 # locale_name = 'de-DE'
 # locale_name_long = 'German (DE)'
 
-### French:
+# French:
+# -------
 
 # locale_id = '080C'
 # locale_id_long = '0000080C'
@@ -143,10 +153,11 @@ locale_name_long = 'Neutral (Neutral)'
 # locale_name = 'fr-FR'
 # locale_name_long = 'French (FR)'
 
-### more: http://msdn.microsoft.com/en-us/library/windows/desktop/dd318693(v=vs.85).aspx
+# more:
+# http://msdn.microsoft.com/en-us/library/windows/desktop/dd318693(v=vs.85).aspx
 
-os.linesep = '\r\n' # This is important, as the resulting text file must be UTF-16 LE with Windows-style line breaks.
-replacement_char = '007E' # Placeholder character for replacing 'ligatures' (more than one character mapped to one key), which are not supported by this conversion script.
+os.linesep = '\r\n'  # This is important, as the resulting text file must be UTF-16 LE with Windows-style line breaks.
+replacement_char = '007E'  # Placeholder character for replacing 'ligatures' (more than one character mapped to one key), which are not supported by this conversion script.
 
 class Key(object):
 
@@ -161,7 +172,12 @@ class Key(object):
 
     def data(self):
 
-        self.output = [str(self.keymapset), int(self.keyindex), int(self.keycode), str(self.type), self.result]
+        self.output = [
+            str(self.keymapset),
+            int(self.keyindex),
+            int(self.keycode),
+            str(self.type),
+            self.result]
         return self.output
 
 
@@ -181,15 +197,15 @@ class Action(object):
 class Parser(object):
 
     def __init__(self):
-        self.keylist = []               # Raw keys as they are in the layout XML
-        self.actionlist = []            # Raw list of actions collected from layout XML
-        self.outputlist = []            # Key output when state == None
-        self.action_basekeys = {}       # Contains action IDs and the actual base keys (e.g. 'a', 'c' etc.)
-        self.deadkeys = {}              # Dictionary {States : deadkeys}
-        self.keydict = {}               # Dictionary {deadkey: (basekey, output)}
-        self.outputdict = {}            # A dictionary of dictionaries, collecting the outputs of every key in each individual state.
-        self.empty_actions = []         # Actions that do not yield immediate output, but shift to a new state.
-        self.keymap_assignments = {}    # Dictionary {keymap ID: modifier key}
+        self.keylist = []  # Raw keys as they are in the layout XML
+        self.actionlist = []  # Raw list of actions collected from layout XML
+        self.outputlist = []  # Key output when state is None
+        self.action_basekeys = {}  # Contains action IDs and the actual base keys (e.g. 'a', 'c' etc.)
+        self.deadkeys = {}  # Dictionary {States : deadkeys}
+        self.keydict = {}  # Dictionary {deadkey: (basekey, output)}
+        self.outputdict = {}  # A dictionary of dictionaries, collecting the outputs of every key in each individual state.
+        self.empty_actions = []  # Actions that do not yield immediate output, but shift to a new state.
+        self.keymap_assignments = {}  # Dictionary {keymap ID: modifier key}
         self.number_of_keymaps = 0
 
     def addKeys(self, key):
@@ -203,15 +219,19 @@ class Parser(object):
         return self.actionlist
 
     def checkSet(self, states, keymap, maxset, minset, string):
-        # Assigns index numbers to the different shift states, by comparing them to the minimum and maximum possible modifier configurations.
-        # This is necessary as the arrangement in the Mac keyboard layout is arbitrary.
+        '''
+        Assign index numbers to the different shift states, by comparing
+        them to the minimum and maximum possible modifier configurations.
+        This is necessary as the arrangement in the Mac keyboard layout
+        is arbitrary.
+        '''
 
         if maxset.issuperset(states) and minset.issubset(states):
             self.keymap_assignments[string] = int(keymap)
 
     def parse(self, tree):
 
-        idx_list = [] # Finding the number of key indexes.
+        idx_list = []  # Find the number of key indexes.
 
         default_max = set('command? caps?'.split())
         default_min = set(''.split())
@@ -247,15 +267,22 @@ class Parser(object):
 
                     keymap = parent.get('mapIndex')
                     states = set(child.get('keys').split())
-                    self.checkSet(states, keymap, default_max, default_min, 'default')
-                    self.checkSet(states, keymap, shift_max, shift_min, 'shift')
-                    self.checkSet(states, keymap, alt_max, alt_min, 'alt')
-                    self.checkSet(states, keymap, altshift_max, altshift_min, 'altshift')
-                    self.checkSet(states, keymap, cmd_max, cmd_min, 'cmd')
-                    self.checkSet(states, keymap, caps_max, caps_min, 'caps')
-                    self.checkSet(states, keymap, cmdcaps_max, cmdcaps_min, 'cmdcaps')
-                    self.checkSet(states, keymap, shiftcaps_max, shiftcaps_min, 'shiftcaps')
-
+                    self.checkSet(
+                        states, keymap, default_max, default_min, 'default')
+                    self.checkSet(
+                        states, keymap, shift_max, shift_min, 'shift')
+                    self.checkSet(
+                        states, keymap, alt_max, alt_min, 'alt')
+                    self.checkSet(
+                        states, keymap, altshift_max, altshift_min, 'altshift')
+                    self.checkSet(
+                        states, keymap, cmd_max, cmd_min, 'cmd')
+                    self.checkSet(
+                        states, keymap, caps_max, caps_min, 'caps')
+                    self.checkSet(
+                        states, keymap, cmdcaps_max, cmdcaps_min, 'cmdcaps')
+                    self.checkSet(
+                        states, keymap, shiftcaps_max, shiftcaps_min, 'shiftcaps')
 
             if parent.tag == 'keyMapSet':
                 keymapset_id = parent.attrib['id']
@@ -263,20 +290,20 @@ class Parser(object):
                     keymap_index = child.attrib['index']
                     for child in child:
                         keycode = child.attrib['code']
-                        if child.get('action') == None:
+                        if child.get('action') is None:
                             type = 'output'
                         else:
                             type = 'action'
                         output = child.get(type)
-                        myKey = Key(keymapset_id, keymap_index, keycode, type, output)
+                        myKey = Key(
+                            keymapset_id, keymap_index, keycode, type, output)
                         self.addKeys(myKey)
-
 
             if parent.tag == 'actions':
                 for child in parent:
                     action_id = child.get('id')
                     for child in child:
-                        if child.get('next') == None:
+                        if child.get('next') is None:
                             type = 'output'
                         else:
                             type = 'next'
@@ -286,16 +313,26 @@ class Parser(object):
                         self.addActions(myAction)
 
                         # Making a dictionary for key id to output.
-                        # On the Mac keyboard, the 'a' for instance is often matched to an action, as it can produce agrave, aacute, etc.
+                        # On the Mac keyboard, the 'a' for instance is often
+                        # matched to an action, as it can produce
+                        # agrave, aacute, etc.
                         if [state, type] == ['none', 'output']:
                             self.action_basekeys[action_id] = result
 
-        self.number_of_keymaps = max(idx_list)  # Yields the highest index assigned to a shift state - thus, the number of shift states in the layout.
+        self.number_of_keymaps = max(idx_list)
+        # Yields the highest index assigned to a shift state - thus, the
+        # number of shift states in the layout.
 
     def findDeadkeys(self):
-        # Returns dictionary self.deadkeys: contains the state ID and the unicode value of actual dead key (for instance, 's3': '02c6' - state 3: circumflex)
-        # Returns list of ids for 'empty' actions: this is for finding the ids of all key inputs that have no immediate output.
-        # This list is used later when an '@' is appended to the unicode values, a Windows convention to mark dead keys.
+        '''
+        Returns dictionary self.deadkeys: contains the state ID and the Unicode
+        value of actual dead key.
+        (for instance, 's3': '02c6' - state 3: circumflex)
+        Returns list of ids for 'empty' actions:
+        this is for finding the ids of all key inputs that have
+        no immediate output. This list is used later when an '@' is appended
+        to the Unicode values, a Windows convention to mark dead keys.
+        '''
 
         deadkey_id = 0
         keylist = []
@@ -313,16 +350,20 @@ class Parser(object):
             if i[1] in list(self.deadkeys.keys()):
                 i[1] = self.deadkeys[i[1]]
 
-        self.action_basekeys.update(dict(keylist)) # This is for adding the actual deadkeys (grave, acute etc) to the dict action_basekeys
+        self.action_basekeys.update(dict(keylist))  # This is for adding the actual deadkeys (grave, acute etc) to the dict action_basekeys
 
         return self.empty_actions
         return self.deadkeys
 
 
     def actionMatcher(self):
-        # Returns a list and a dictionary:
-        # Self.actionlist is extended by the base character, e.g. ['6', 's1', 'output', '00c1', '0041'] % action id, state, type, Aacute, A
-        # Self.action_basekeys are all the glyphs that can be combined with a dead key, e.g. A,E,I etc.
+        '''
+        Returns a list and a dictionary:
+        Self.actionlist is extended by the base character, e.g.
+        ['6', 's1', 'output', '00c1', '0041'] % action id, state, type, Aacute, A
+        Self.action_basekeys are all the glyphs that can be combined
+        with a dead key, e.g. A,E,I etc.
+        '''
 
         for i in self.actionlist:
             if [i[1], i[2]] == ['none', 'output']:
@@ -336,11 +377,15 @@ class Parser(object):
 
 
     def findOutputs(self):
-        # Finding the real output values of all the keys, e.g. replacing the actions IDs in the XML keyboard layout with the unicodes they actually return in their standard state.
+        '''
+        Finding the real output values of all the keys, e.g. replacing the
+        action IDs in the XML keyboard layout with the unicodes they actually
+        return in their standard state.
+        '''
 
         for i in self.keylist:
             if i[4] in self.empty_actions:
-                i.append('@') # If the key is a real dead key, mark it. This mark is being used in 'makeOutputDict'.
+                i.append('@')  # If the key is a real dead key, mark it. This mark is being used in 'makeOutputDict'.
 
             if i[4] in self.action_basekeys:
                 i[3] = 'output'
@@ -353,7 +398,10 @@ class Parser(object):
 
 
     def makeDeadKeyTable(self):
-        # Populates self.keydict, which maps a deadkey (e.g. 02dc, circumflex) to (base character, accented character)) tuples (e.g. 0041, 00c3 == A, Atilde)
+        ''' Populates self.keydict, which maps a deadkey
+        (e.g. 02dc, circumflex) to (base character, accented character)) tuples
+        (e.g. 0041, 00c3 == A, Atilde)
+        '''
 
         for i in self.actionlist:
             if i[1] in list(self.deadkeys.keys()):
@@ -371,8 +419,11 @@ class Parser(object):
         return self.keydict
 
     def makeOutputDict(self):
-        # This script is configurated to work for the first keymap set of an XML keyboard layout only.
-        # Here, the filtering occurs:
+        '''
+        This script is configurated to work for the first keymap set of an
+        XML keyboard layout only.
+        Here, the filtering occurs:
+        '''
 
         first_keymapset = self.outputlist[0][0]
         for i in self.outputlist:
@@ -393,30 +444,34 @@ class Parser(object):
             if len(i) == 5:
                 output = i[4]
             else:
-                output = i[4] + '@' # The string for making clear that this key is a deadkey. Necessary in .klc files.
+                output = i[4] + '@'  # The string for making clear that this key is a deadkey. Necessary in .klc files.
 
             self.outputdict[key_id][keymap_id] = output
 
         return self.outputdict
 
     def getOutput(self, dict, string):
-            # Used in next function, to find output per state, for every key. If no output, it returns '-1' (a.k.a. not defined).
+        '''
+        Used in next function, to find output per state, for every key.
+        If no output, it returns '-1' (a.k.a. not defined).
+        '''
 
-            try: var = dict[self.keymap_assignments[string]]
-            except KeyError: var = '-1'
-            return var
-
+        try:
+            var = dict[self.keymap_assignments[string]]
+        except KeyError:
+            var = '-1'
+        return var
 
     def writeKeyTable(self):
         output = []
         for d in sorted(windata.keys()):
             nwin = int(d, 16)
 
-            if not nwin in winmac:
+            if nwin not in winmac:
                 print("// No equivalent Mac OS code for Windows code %s ('%s'). Skipping." % (nwin, windata[d]))
                 continue
             n = winmac[nwin]
-            if not n in self.outputdict:
+            if n not in self.outputdict:
                 print("// Could not match Windows code %s ('%s') to Mac OS code %s. Skipping." % (nwin, windata[d], n))
                 continue
 
@@ -435,8 +490,7 @@ class Parser(object):
             # keytable[9]: output for altGr-shift (= ctrl-alt-shift)
             # keytable[10]: descriptions.
 
-            keytable = list((d, windata[d])) + ([""]*9)
-
+            keytable = list((d, windata[d])) + ([""] * 9)
 
             default_output = self.getOutput(u, 'default')
             shift_output = self.getOutput(u, 'shift')
@@ -463,16 +517,28 @@ class Parser(object):
             keytable[7] = cmdcaps_output
             keytable[8] = alt_output
             keytable[9] = altshift_output
-            keytable[10] = '// %s, %s, %s, %s, %s' % (udata(default_output), udata(shift_output), udata(cmd_output), udata(alt_output), udata(altshift_output)) # Key descriptions
+            keytable[10] = '// %s, %s, %s, %s, %s' % (
+                udata(default_output),
+                udata(shift_output),
+                udata(cmd_output),
+                udata(alt_output),
+                udata(altshift_output))  # Key descriptions
 
             output.append('\t'.join(keytable))
 
             if keytable[3] == 'SGCap':
-                output.append('-1\t-1\t\t0\t%s\t%s\t\t\t\t\t// %s, %s' % (caps_output, shiftcaps_output, udata(caps_output), udata(shiftcaps_output)))
+                output.append('-1\t-1\t\t0\t%s\t%s\t\t\t\t\t// %s, %s' % (
+                    caps_output,
+                    shiftcaps_output,
+                    udata(caps_output),
+                    udata(shiftcaps_output)))
         return output
 
     def writeDeadKeyTable(self):
-        # Writes a summary of dead keys, their results in all intended combinations.
+        '''
+        Writes a summary of dead keys, their results in all intended
+        combinations.
+        '''
 
         output = ['']
         for i in list(self.keydict.keys()):
@@ -481,7 +547,8 @@ class Parser(object):
             output.append('')
 
             for j in self.keydict[i]:
-                string = '%s\t%s\t// %s -> %s' % (j[0], j[1], charFromUnicode(j[0]), charFromUnicode(j[1]))
+                string = '%s\t%s\t// %s -> %s' % (
+                    j[0], j[1], charFromUnicode(j[0]), charFromUnicode(j[1]))
                 output.append(string)
         return output
 
@@ -490,16 +557,13 @@ class Parser(object):
 
         output = ['', 'KEYNAME_DEAD', '']
         for i in list(self.deadkeys.values()):
-            output.append( '%s\t"%s"' % (i, udata(i)))
+            output.append('%s\t"%s"' % (i, udata(i)))
         output.append('')
 
         if len(output) == 4:
             return ['', '']
         else:
             return output
-
-
-
 
 
 ### DATA ###
@@ -525,30 +589,35 @@ prefix = '''KBD\t%s\t"%s"\r\rCOPYRIGHT\t"(c) %s %s"\r\rCOMPANY\t"%s"\r\rLOCALENA
 suffix = '''\rDESCRIPTIONS\r\r%s\t%s\r\rLANGUAGENAMES\r\r%s\t%s\r\rENDKBD''' % (locale_id, keyboard_name, locale_id, locale_name_long)
 
 
-
-
-
 ### HELPER FUNCTIONS ###
 
 def readFile(path):
-    # Reading a file, making list of the lines, closing the file.
+    '''
+    Read a file, make list of the lines, close the file.
+    '''
 
     file = open(path, 'r')
     data = file.read().splitlines()
     file.close()
     return data
 
+
 def uni_from_char(string):
-    # Returns a 4 or 5-digit string containing the Unicode value of passed glyph.
+    '''
+    Returns a 4 or 5-digit string containing the Unicode value of passed glyph.
+    '''
 
     try:
         unistring = str(string, 'utf-8')
         ordstring = ord(unistring)
         return hex(ordstring)[2:].zfill(4)
 
-        # For now, 'ligatures' (2 or more characters assigned to one key) are not supported in this conversion script.
-        # Ligature support on Windows keyboards is spotty (no ligatures in Caps Lock states, for instance), and limited to four characters per key.
-        # Used in very few keyboard layouts only, the decision was made to insert a placeholder character instead.
+        # For now, 'ligatures' (2 or more characters assigned to one key)
+        # are not supported in this conversion script.
+        # Ligature support on Windows keyboards is spotty (no ligatures in
+        # Caps Lock states, for instance), and limited to four characters
+        # per key. Used in very few keyboard layouts only, the decision was
+        # made to insert a placeholder character instead.
 
     except TypeError:
         print('Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (string, udata(replacement_char)))
@@ -558,32 +627,44 @@ def uni_from_char(string):
         print('Could not convert composed character %s, inserting replacement character (%s). Sorry.' % (string, udata(replacement_char)))
         return replacement_char
 
+
 def charFromUnicode(unicodestring):
-    # Returns character from a Unicode code point.
+    '''
+    Return character from a Unicode code point.
+    '''
 
     if len(unicodestring) > 5:
         return unicodestring
     else:
         return chr(int(unicodestring, 16))
 
+
 def udata(unicodestring):
-    # Returns description of characters, e.g. 'DIGIT ONE', 'EXCLAMATION MARK' etc.
+    '''
+    Return description of characters, e.g. 'DIGIT ONE', 'EXCLAMATION MARK' etc.
+    '''
 
     if unicodestring in ['-1', '']:
         return '<none>'
     if unicodestring.endswith('@'):
         unicodestring = unicodestring[0:-1]
-    else: unicodestring = unicodestring
+    else:
+        unicodestring = unicodestring
 
     try:
         return unicodedata.name(charFromUnicode(unicodestring))
     except ValueError:
         return 'PUA %s' % (unicodestring)
 
+
 def new_xml(file):
-    # Creates a new XML file in memory.
-    # Literal Unicode entities (&#x0000;) make the XML parser choke, that's why some replacing operations are necessary.
-    # Also, all literal output characters are converted to Unicode strings (0000, FFFF, 1FF23 etc).
+    '''
+    Creates a new XML file in memory.
+    Literal Unicode entities (&#x0000;) make the XML parser choke,
+    that's why some replacement operations are necessary.
+    Also, all literal output characters are converted to Unicode strings
+    (0000, FFFF, 1FF23 etc).
+    '''
 
     newxml = []
     output_line = re.compile(r'(output=[\"\'])(.+?)([\"\'])')
@@ -605,14 +686,12 @@ def new_xml(file):
             else:
                 query = re.search(output_line, line)
                 character = query.group(2)
-                replacement = '%s%s%s' % (query.group(1), uni_from_char(character), query.group(3))
+                replacement = '%s%s%s' % (
+                    query.group(1), uni_from_char(character), query.group(3))
                 line = re.sub(output_line, replacement, line)
 
         newxml.append(line)
     return '\r'.join(newxml)
-
-
-
 
 
 ### THE ACTUAL FUNCTION ###
@@ -630,7 +709,6 @@ def run():
     if "-d" in sys.argv:
         print(__doc__)
         return
-
 
     inputfile = sys.argv[1]
     if inputfile.split('.')[1] != 'keylayout':
@@ -660,16 +738,17 @@ def run():
     output.extend(suffix.splitlines())
 
 
-
-
-
 ### FILE HANDLING ###
 
-    # As the Windows .dll files allow for 8-digit file names only, the output file name is truncated.
-    # If the input file name contains a digit (being part of a series), this digit is appended to the end of the output file name.
-    # If this digit is longer than 8 digits, the script will gently ask to modify the input file name.
+    # As the Windows .dll files allow for 8-digit file names only, the output
+    # file name is truncated. If the input file name contains a number (being
+    # part of a series), this number is appended to the end of the output file
+    # name. If this number is longer than 8 digits, the script will gently
+    # ask to modify the input file name.
 
-    # Periods and spaces in the file name are not supported; MSKLC will not build the .dll if the .klc has any. This is why they are being stripped here:
+    # Periods and spaces in the file name are not supported; MSKLC will not
+    # build the .dll if the .klc has any.
+    # This is why they are being stripped here:
 
     filename = re.sub(r'[. ]', '', keyboard_name)
 
@@ -686,7 +765,8 @@ def run():
     else:
         filename = '%s.klc' % (filename[:8])
 
-    outputfile = codecs.open(os.sep.join((keyboard_path,filename)), 'w', 'utf-16')
+    outputfile = codecs.open(
+        os.sep.join((keyboard_path, filename)), 'w', 'utf-16')
     for i in output:
         outputfile.write(i)
         outputfile.write(os.linesep)
@@ -694,6 +774,6 @@ def run():
 
     print('done')
 
+
 if __name__ == "__main__":
     run()
-
