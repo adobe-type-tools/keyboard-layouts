@@ -261,7 +261,7 @@ klc_prefix_dummy = (
 # (name, keyboard_name, year, company, company, locale_name, locale_id_long)
 
 klc_suffix_dummy = (
-    '''\rDESCRIPTIONS\r'''
+    '''DESCRIPTIONS\r'''
     '''\r'''
     '''{}\t{}\r'''
     '''\r'''

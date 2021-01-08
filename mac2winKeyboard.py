@@ -522,12 +522,12 @@ def uni_from_char(character):
     try:
         return '{0:04x}'.format(ord(character))
 
-        # For now, 'ligatures' (2 or more characters assigned to one key)
+        # For now, 'ligatures' (2 or more code points assigned to one key)
         # are not supported in this conversion script.
         # Ligature support on Windows keyboards is spotty (no ligatures in
-        # Caps Lock states, for instance), and limited to four characters
+        # Caps Lock states, for instance), and limited to four code points
         # per key. Used in very few keyboard layouts only, the decision was
-        # made to insert a placeholder character instead.
+        # made to insert a placeholder instead.
 
     except TypeError:
         print(error_msg_conversion.format(
@@ -545,6 +545,7 @@ def char_from_hex(hex_string):
     Return character from a Unicode code point.
     '''
 
+    # XXX what is this here for?
     if len(hex_string) > 5:
         return hex_string
     else:
@@ -622,17 +623,17 @@ def make_klc_filename(keyboard_name):
     # strip periods and spaces
     filename = re.sub(r'[. ]', '', keyboard_name)
 
-    # find digits in file name
-    rx_digit = re.compile(r'(\d+)')
+    # find digit(s) at tail of file name
+    rx_digit = re.compile(r'(\d+?)$')
     match_digit = rx_digit.search(filename)
 
     if match_digit:
-        trunc = 8 - len(match_digit.group(1))
+        trunc = 8 - len(match_digit.group(1)) - 1
         if trunc < 0:
             print(error_msg_filename)
             sys.exit(-1)
         else:
-            filename = '{}{}.klc'.format(
+            filename = '{}_{}.klc'.format(
                 filename[:trunc], match_digit.group(1))
     else:
         filename = '{}.klc'.format(filename[:8])
@@ -698,7 +699,14 @@ def get_args():
     parser.add_argument(
         'input',
         type=lambda input_file: verify_input_file(parser, input_file),
-        help='input .keylayout file')
+        help='input .keylayout file'
+    )
+
+    parser.add_argument(
+        '-o', '--output_dir',
+        help='output directory',
+        metavar='DIR',
+    )
 
     return parser.parse_args()
 
@@ -706,7 +714,12 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     input_file = args.input
-    output_dir = os.path.abspath(os.path.dirname(input_file))
+
+    if args.output_dir:
+        output_dir = args.output_dir
+    else:
+        output_dir = os.path.abspath(os.path.dirname(input_file))
+
     keyboard_data = process_input_keylayout(input_file)
 
     keyboard_name = make_keyboard_name(input_file)
@@ -728,4 +741,4 @@ if __name__ == '__main__':
         output_file.write(os.linesep)
     output_file.close()
 
-    print('done')
+    print(f'written {keyboard_name} to {klc_filename}')
