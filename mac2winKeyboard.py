@@ -29,7 +29,7 @@ error_msg_conversion = (
     'inserting replacement character ({}). Sorry.'
 )
 error_msg_filename = (
-    'Too many digits for a Windows-style (8+3) filename.'
+    'Too many digits for a Windows-style (8+3) filename. '
     'Please rename the source file.')
 
 error_msg_macwin_mismatch = (
@@ -190,30 +190,30 @@ class KeylayoutParser(object):
 
             if parent.tag == 'keyMapSet':
                 keymapset_id = parent.attrib['id']
-                for child in parent:
-                    keymap_index = child.attrib['index']
-                    for grandchild in child:
-                        key_code = grandchild.attrib['code']
-                        if grandchild.get('action') is None:
+                for keymap in parent:
+                    keymap_index = keymap.attrib['index']
+                    for key in keymap:
+                        key_code = key.attrib['code']
+                        if key.get('action') is None:
                             key_type = 'output'
                         else:
                             key_type = 'action'
-                        output = grandchild.get(key_type)
+                        output = key.get(key_type)
                         myKey = Key(
                             keymapset_id, keymap_index,
                             key_code, key_type, output)
                         self.key_list.append(myKey.data())
 
             if parent.tag == 'actions':
-                for child in parent:
-                    action_id = child.get('id')
-                    for grandchild in child:
-                        if grandchild.get('next') is None:
+                for action in parent:
+                    action_id = action.get('id')
+                    for action_state in action:
+                        if action_state.get('next') is None:
                             action_type = 'output'
                         else:
                             action_type = 'next'
-                        state = grandchild.get('state')
-                        result = grandchild.get(action_type)
+                        state = action_state.get('state')
+                        result = action_state.get(action_type)
                         myAction = Action(
                             action_id, state, action_type, result)
                         self.action_list.append(myAction.data())
@@ -225,9 +225,9 @@ class KeylayoutParser(object):
                         if [state, action_type] == ['none', 'output']:
                             self.action_basekeys[action_id] = result
 
-        self.number_of_keymaps = max(idx_list)
         # Yield the highest index assigned to a shift state - thus, the
         # number of shift states in the layout.
+        self.number_of_keymaps = max(idx_list)
 
     def findDeadkeys(self):
         '''
@@ -495,8 +495,6 @@ class KeylayoutParser(object):
             return output
 
 
-### HELPER FUNCTIONS ###
-
 def read_file(path):
     '''
     Read a file, make list of the lines, close the file.
@@ -507,7 +505,7 @@ def read_file(path):
     return data
 
 
-def uni_from_char(character):
+def codepoint_from_char(character):
     '''
     Return a 4 or 5-digit Unicode hex string for the passed character.
     '''
@@ -559,45 +557,53 @@ def char_description(hex_string):
         return 'PUA {}'.format(hex_string)
 
 
-def new_xml(file):
+def filter_xml(input_keylayout):
     '''
-    Create a new XML file.
-    Literal Unicode entities (&#x0000;) make the XML parser choke,
-    that's why some replacement operations are necessary.
-    Also, all literal output characters are converted to Unicode strings
-    (0000, FFFF, 1FF23 etc).
+    Filter xml-based keylayout file.
+    Unicode entities (&#x0000;) make the Elementtree xml parser choke,
+    that’s why some replacement operations are necessary.
+    Also, all literal output characters are converted to code points
+    (0000, ffff, 1ff23 etc) for easier handling downstream.
     '''
 
-    newxml = []
-    output_line = re.compile(r'(output=[\"\'])(.+?)([\"\'])')
-    uni_value = re.compile(r'&#x([a-fA-F0-9]{4,6});')
-    uni_lig = re.compile(r'((&#x[a-fA-F0-9]{4};){2,})')
+    rx_uni_lig = re.compile(r'((&#x[a-fA-F0-9]{4};){2,})')
+    rx_hex_escape = re.compile(r'&#x([a-fA-F0-9]{4,6});')
+    rx_output_line = re.compile(r'(output=[\"\'])(.+?)([\"\'])')
 
-    for line in read_file(file):
+    # Fixing the first line to make Elementtree not stumble
+    # over a capitalized XML tag
+    filtered_xml = ['<?xml version="1.0" encoding="UTF-8"?>']
 
-        if line[:5] == '<?XML':
-            # This avoids the parser to fail right in the first line:
-            # sometimes, files start with '<?XML' rather than '<?xml',
-            # which causes mayhem.
-            line = '<?xml%s' % line[5:]
+    for line in read_file(input_keylayout)[1:]:
 
-        if re.search(output_line, line):
-            if re.search(uni_lig, line):
+        if re.search(rx_output_line, line):
+            if re.search(rx_uni_lig, line):
+                # More than 1 output character.
+                # Not supported, so fill in replacement char instead.
+                lig_characters = re.search(rx_uni_lig, line).group(1)
                 print(error_msg_conversion.format(
-                    re.search(uni_lig, line).group(1),
-                    char_description(replacement_char)))
-                line = re.sub(uni_lig, replacement_char, line)
-            elif re.search(uni_value, line):
-                line = re.sub(uni_value, r'\1', line)
+                    lig_characters, char_description(replacement_char)))
+                line = re.sub(rx_uni_lig, replacement_char.lower(), line)
+            elif re.search(rx_hex_escape, line):
+                # Escaped code point, e.g. &#x0020;
+                # Remove everything except the code point.
+                query = re.search(rx_hex_escape, line)
+                codepoint = query.group(1).lower()
+                line = re.sub(rx_hex_escape, codepoint, line)
             else:
-                query = re.search(output_line, line)
+                # Normal character output.
+                # Replace the character by a code point
+                query = re.search(rx_output_line, line)
+                char_pre = query.group(1)  # output="
                 character = query.group(2)
-                replacement = '%s%s%s' % (
-                    query.group(1), uni_from_char(character), query.group(3))
-                line = re.sub(output_line, replacement, line)
+                codepoint = codepoint_from_char(character).lower()
+                char_suff = query.group(3)  # "
+                replacement_line = ''.join((char_pre, codepoint, char_suff))
+                line = re.sub(rx_output_line, replacement_line, line)
 
-        newxml.append(line)
-    return '\r'.join(newxml)
+        filtered_xml.append(line)
+
+    return '\n'.join(filtered_xml)
 
 
 def make_klc_filename(keyboard_name):
@@ -633,9 +639,9 @@ def make_klc_filename(keyboard_name):
     return filename
 
 
-def process_input_keylayout(input_file):
-    newxml = new_xml(input_file)
-    tree = ET.XML(newxml)
+def process_input_keylayout(input_keylayout):
+    filtered_xml = filter_xml(input_keylayout)
+    tree = ET.XML(filtered_xml)
 
     keyboard_data = KeylayoutParser()
     keyboard_data.parse(tree)
@@ -644,6 +650,7 @@ def process_input_keylayout(input_file):
     keyboard_data.findOutputs()
     keyboard_data.makeDeadKeyTable()
     keyboard_data.makeOutputDict()
+
     return keyboard_data
 
 
