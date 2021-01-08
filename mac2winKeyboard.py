@@ -89,7 +89,7 @@ class Action(object):
         return output
 
 
-class KeylaoutParser(object):
+class KeylayoutParser(object):
 
     def __init__(self):
         # Raw keys as they are in the layout XML
@@ -174,7 +174,6 @@ class KeylaoutParser(object):
         for parent in tree.getiterator():
 
             if parent.tag == 'keyMapSelect':
-
                 for child in parent:
                     idx = int(parent.get('mapIndex'))
                     idx_list.append(idx)
@@ -332,7 +331,6 @@ class KeylaoutParser(object):
         '''
 
         for i in self.action_list:
-            print(i)
             if i[1] in list(self.deadkeys.keys()):
                 i.append(self.deadkeys[i[1]])
 
@@ -455,11 +453,11 @@ class KeylaoutParser(object):
             keytable[8] = alt_output
             keytable[9] = altshift_output
             keytable[10] = '// %s, %s, %s, %s, %s' % (
-                udata(default_output),
-                udata(shift_output),
-                udata(cmd_output),
-                udata(alt_output),
-                udata(altshift_output))  # Key descriptions
+                char_description(default_output),
+                char_description(shift_output),
+                char_description(cmd_output),
+                char_description(alt_output),
+                char_description(altshift_output))  # Key descriptions
 
             output.append('\t'.join(keytable))
 
@@ -467,8 +465,8 @@ class KeylaoutParser(object):
                 output.append('-1\t-1\t\t0\t%s\t%s\t\t\t\t\t// %s, %s' % (
                     caps_output,
                     shiftcaps_output,
-                    udata(caps_output),
-                    udata(shiftcaps_output)))
+                    char_description(caps_output),
+                    char_description(shiftcaps_output)))
         return output
 
     def writeDeadKeyTable(self):
@@ -485,7 +483,7 @@ class KeylaoutParser(object):
 
             for j in self.key_dict[i]:
                 string = '%s\t%s\t// %s -> %s' % (
-                    j[0], j[1], char_from_unicode(j[0]), char_from_unicode(j[1]))
+                    j[0], j[1], char_from_hex(j[0]), char_from_hex(j[1]))
                 output.append(string)
         return output
 
@@ -494,7 +492,7 @@ class KeylaoutParser(object):
 
         output = ['', 'KEYNAME_DEAD', '']
         for i in list(self.deadkeys.values()):
-            output.append('%s\t"%s"' % (i, udata(i)))
+            output.append('%s\t"%s"' % (i, char_description(i)))
         output.append('')
 
         if len(output) == 4:
@@ -532,41 +530,39 @@ def uni_from_char(character):
         # made to insert a placeholder character instead.
 
     except TypeError:
-        print(error_msg_conversion.format(character, udata(replacement_char)))
+        print(error_msg_conversion.format(
+            character, char_description(replacement_char)))
         return replacement_char
 
     except ValueError:
-        print(error_msg_conversion.format(character, udata(replacement_char)))
+        print(error_msg_conversion.format(
+            character, char_description(replacement_char)))
         return replacement_char
 
 
-def char_from_unicode(unicode_string):
+def char_from_hex(hex_string):
     '''
     Return character from a Unicode code point.
     '''
 
-    if len(unicode_string) > 5:
-        return unicode_string
+    if len(hex_string) > 5:
+        return hex_string
     else:
-        return chr(int(unicode_string, 16))
+        return chr(int(hex_string, 16))
 
 
-def udata(unicode_string):
+def char_description(hex_string):
     '''
     Return description of characters, e.g. 'DIGIT ONE', 'EXCLAMATION MARK' etc.
     '''
-
-    if unicode_string in ['-1', '']:
+    if hex_string in ['-1', '']:
         return '<none>'
-    if unicode_string.endswith('@'):
-        unicode_string = unicode_string[0:-1]
-    else:
-        unicode_string = unicode_string
+    hex_string = hex_string.rstrip('@')
 
     try:
-        return unicodedata.name(char_from_unicode(unicode_string))
+        return unicodedata.name(char_from_hex(hex_string))
     except ValueError:
-        return 'PUA %s' % (unicode_string)
+        return 'PUA {}'.format(hex_string)
 
 
 def new_xml(file):
@@ -595,7 +591,7 @@ def new_xml(file):
             if re.search(uni_lig, line):
                 print(error_msg_conversion.format(
                     re.search(uni_lig, line).group(1),
-                    udata(replacement_char)))
+                    char_description(replacement_char)))
                 line = re.sub(uni_lig, replacement_char, line)
             elif re.search(uni_value, line):
                 line = re.sub(uni_value, r'\1', line)
@@ -632,13 +628,14 @@ def make_klc_filename(keyboard_name):
 
     if match_digit:
         trunc = 8 - len(match_digit.group(1))
-        if trunc <= 0:
+        if trunc < 0:
             print(error_msg_filename)
-            sys.exit()
+            sys.exit(-1)
         else:
-            filename = '%s%s.klc' % (filename[:trunc], match_digit.group(1))
+            filename = '{}{}.klc'.format(
+                filename[:trunc], match_digit.group(1))
     else:
-        filename = '%s.klc' % (filename[:8])
+        filename = '{}.klc'.format(filename[:8])
     return filename
 
 
@@ -646,7 +643,7 @@ def process_input_keylayout(input_file):
     newxml = new_xml(input_file)
     tree = ET.XML(newxml)
 
-    keyboard_data = KeylaoutParser()
+    keyboard_data = KeylayoutParser()
     keyboard_data.parse(tree)
     keyboard_data.findDeadkeys()
     keyboard_data.matchActions()
