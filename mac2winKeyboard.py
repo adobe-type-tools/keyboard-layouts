@@ -122,16 +122,6 @@ class KeylayoutParser(object):
 
         self.number_of_keymaps = 0
 
-    def addKeys(self, key):
-        self.key = key
-        self.key_list.append(key.data())
-        return self.key_list
-
-    def addActions(self, action):
-        self.action = action
-        self.action_list.append(action.data())
-        return self.action_list
-
     def checkSet(self, states, keymap, maxset, minset, string):
         '''
         Assign index numbers to the different shift states, by comparing
@@ -205,13 +195,14 @@ class KeylayoutParser(object):
                     for grandchild in child:
                         key_code = grandchild.attrib['code']
                         if grandchild.get('action') is None:
-                            type = 'output'
+                            key_type = 'output'
                         else:
-                            type = 'action'
-                        output = grandchild.get(type)
+                            key_type = 'action'
+                        output = grandchild.get(key_type)
                         myKey = Key(
-                            keymapset_id, keymap_index, key_code, type, output)
-                        self.addKeys(myKey)
+                            keymapset_id, keymap_index,
+                            key_code, key_type, output)
+                        self.key_list.append(myKey.data())
 
             if parent.tag == 'actions':
                 for child in parent:
@@ -225,7 +216,7 @@ class KeylayoutParser(object):
                         result = grandchild.get(action_type)
                         myAction = Action(
                             action_id, state, action_type, result)
-                        self.addActions(myAction)
+                        self.action_list.append(myAction.data())
 
                         # Make a dictionary for key id to output.
                         # On the Mac keyboard, the 'a' for instance is often
@@ -379,32 +370,35 @@ class KeylayoutParser(object):
 
         return self.output_dict
 
-    def getOutput(self, dict, string):
+    def getOutput(self, key_output_dict, state):
         '''
-        Used in next function, to find output per state, for every key.
+        Used to find output per state, for every key.
         If no output, return '-1' (a.k.a. not defined).
         '''
 
         try:
-            var = dict[self.keymap_assignments[string]]
+            output = key_output_dict[self.keymap_assignments[state]]
         except KeyError:
-            var = '-1'
-        return var
+            output = '-1'
+        return output
 
     def writeKeyTable(self):
         output = []
-        for d in sorted(win_keycodes.keys()):
-            nwin = int(d, 16)
+        for win_kc_hex, win_kc_name in sorted(win_keycodes.items()):
+            win_kc_int = int(win_kc_hex, 16)
 
-            if nwin not in win_to_mac_keycodes:
-                print(error_msg_macwin_mismatch.format(nwin, win_keycodes[d]))
-                continue
-            n = win_to_mac_keycodes[nwin]
-            if n not in self.output_dict:
-                print(error_msg_winmac_mismatch.format(nwin, win_keycodes[d], n))
+            if win_kc_int not in win_to_mac_keycodes:
+                print(error_msg_macwin_mismatch.format(
+                    win_kc_int, win_keycodes[win_kc_hex]))
                 continue
 
-            u = self.output_dict[n]
+            mac_kc = win_to_mac_keycodes[win_kc_int]
+            if mac_kc not in self.output_dict:
+                print(error_msg_winmac_mismatch.format(
+                    win_kc_int, win_keycodes[win_kc_hex], mac_kc))
+                continue
+
+            outputs = self.output_dict[mac_kc]
 
             # Keytable follows the syntax of the .klc file.
             # The columns are as follows:
@@ -421,16 +415,16 @@ class KeylayoutParser(object):
             # keytable[9]: output for altGr-shift (= ctrl-alt-shift)
             # keytable[10]: descriptions.
 
-            keytable = list((d, win_keycodes[d])) + ([""] * 9)
+            keytable = list((win_kc_hex, win_kc_name)) + ([""] * 9)
 
-            default_output = self.getOutput(u, 'default')
-            shift_output = self.getOutput(u, 'shift')
-            alt_output = self.getOutput(u, 'alt')
-            altshift_output = self.getOutput(u, 'altshift')
-            caps_output = self.getOutput(u, 'caps')
-            cmd_output = self.getOutput(u, 'cmd')
-            cmdcaps_output = self.getOutput(u, 'cmdcaps')
-            shiftcaps_output = self.getOutput(u, 'shiftcaps')
+            default_output = self.getOutput(outputs, 'default')
+            shift_output = self.getOutput(outputs, 'shift')
+            alt_output = self.getOutput(outputs, 'alt')
+            altshift_output = self.getOutput(outputs, 'altshift')
+            caps_output = self.getOutput(outputs, 'caps')
+            cmd_output = self.getOutput(outputs, 'cmd')
+            cmdcaps_output = self.getOutput(outputs, 'cmdcaps')
+            shiftcaps_output = self.getOutput(outputs, 'shiftcaps')
 
             # Check if the caps lock output equals the shift key,
             # to set the caps lock status.
@@ -508,9 +502,8 @@ def read_file(path):
     Read a file, make list of the lines, close the file.
     '''
 
-    file = open(path, 'r')
-    data = file.read().splitlines()
-    file.close()
+    with open(path, 'r') as f:
+        data = f.read().splitlines()
     return data
 
 
@@ -734,11 +727,10 @@ if __name__ == '__main__':
     output.extend(keyboard_data.writeKeynameDead())
     output.extend(klc_suffix.splitlines())
 
-    output_file = codecs.open(
-        os.sep.join((output_dir, klc_filename)), 'w', 'utf-16')
-    for line in output:
-        output_file.write(line)
-        output_file.write(os.linesep)
-    output_file.close()
+    output_path = os.sep.join((output_dir, klc_filename))
+    with codecs.open(output_path, 'w', 'utf-16') as output_file:
+        for line in output:
+            output_file.write(line)
+            output_file.write(os.linesep)
 
     print(f'written {keyboard_name} to {klc_filename}')
