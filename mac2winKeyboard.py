@@ -432,12 +432,16 @@ class KeylayoutParser(object):
         '''
 
         dk_table = ['']
-        for cp_dead, base_result_tuple in self.deadkey_dict.items():
+        for cp_dead, base_result_list in self.deadkey_dict.items():
+            # we want the space character to be last in the list,
+            # otherwise MSKLC complains (not sure if consequential)
+            sorted_base_result_list = sorted(
+                base_result_list, key=lambda x: int(x[0], 16), reverse=True)
             dk_table.extend([''])
             dk_table.append(f'DEADKEY\t{cp_dead}')
             dk_table.append('')
 
-            for cp_base, cp_result in base_result_tuple:
+            for cp_base, cp_result in sorted_base_result_list:
                 char_base = char_from_hex(cp_base)
                 char_result = char_from_hex(cp_result)
                 line = (
