@@ -16,17 +16,17 @@ import unicodedata
 import xml.etree.ElementTree as ET
 
 # local modules
-from klc_data import (
+from data.klc_data import (
     win_to_mac_keycodes, win_keycodes,
-    klc_keynames, klc_prefix_dummy, klc_suffix_dummy
+    klc_keynames, klc_prologue_dummy, klc_epilogue_dummy
 )
-from locale_data import (
+from data.locale_data import (
     locale_id, locale_id_long, locale_tag, locale_name, locale_name_long,
 )
 
 error_msg_conversion = (
     'Could not convert composed character {}, '
-    'inserting replacement character ({}). Sorry.'
+    'inserting replacement character ({}).'
 )
 error_msg_filename = (
     'Too many digits for a Windows-style (8+3) filename. '
@@ -49,66 +49,26 @@ os.linesep = '\r\n'
 replacement_char = '007E'
 
 
-class Key(object):
-
-    def __init__(self, keymap_set, key_index, key_code, key_type, result):
-
-        self.keymap_set = keymap_set
-        self.key_index = key_index
-        self.key_code = key_code
-        self.key_type = key_type
-        self.result = result
-
-    def data(self):
-
-        self.output = [
-            str(self.keymap_set),
-            int(self.key_index),
-            int(self.key_code),
-            str(self.key_type),
-            self.result]
-
-        return self.output
-
-
-class Action(object):
-
-    def __init__(self, action, state, action_type, result):
-        self.action = action
-        self.state = state
-        self.action_type = action_type
-        self.result = result
-
-    def data(self):
-        output = [
-            self.action,
-            str(self.state),
-            str(self.action_type),
-            self.result
-        ]
-        return output
-
-
 class KeylayoutParser(object):
 
-    def __init__(self):
-        # Raw keys as they are in the layout XML
+    def __init__(self, tree):
+        # raw keys as they are in the layout XML
         self.key_list = []
 
-        # Raw list of actions collected from layout XML
+        # raw list of actions collected from layout XML
         self.action_list = []
 
-        # Key output when state is None
+        # key output when state is None
         self.output_list = []
 
-        # Contains action IDs and the actual base keys (e.g. 'a', 'c' etc.)
+        # action IDs and actual base keys (e.g. 'a', 'c' etc.)
         self.action_basekeys = {}
 
-        # {states : deadkeys}
+        # {states: deadkeys}
         self.deadkeys = {}
 
         # {deadkey: (basekey, output)}
-        self.key_dict = {}
+        self.deadkey_dict = {}
 
         # A dict of dicts, collecting the outputs of every key
         # in each individual state.
@@ -122,7 +82,14 @@ class KeylayoutParser(object):
 
         self.number_of_keymaps = 0
 
-    def checkSet(self, states, keymap, maxset, minset, string):
+        self.parse(tree)
+        self.find_deadkeys()
+        self.match_actions()
+        self.find_outputs()
+        self.make_deadkey_dict()
+        self.make_output_dict()
+
+    def check_states(self, states, keymap, maxset, minset, mod_name):
         '''
         Assign index numbers to the different shift states, by comparing
         them to the minimum and maximum possible modifier configurations.
@@ -131,95 +98,97 @@ class KeylayoutParser(object):
         '''
 
         if maxset.issuperset(states) and minset.issubset(states):
-            self.keymap_assignments[string] = int(keymap)
+            self.keymap_assignments[mod_name] = int(keymap)
 
     def parse(self, tree):
 
-        idx_list = []  # Find the number of key indexes.
+        keymap_idx_list = []  # Find the number of keymap indexes.
 
-        default_max = set('command? caps?'.split())
-        default_min = set(''.split())
+        default_max = {'command?', 'caps?'}
+        default_min = set()
 
-        alt_max = set('anyOption caps? command?'.split())
-        alt_min = set('anyOption'.split())
+        alt_max = {'anyOption', 'caps?', 'command?'}
+        alt_min = {'anyOption'}
 
-        shift_max = set('anyShift caps? command?'.split())
-        shift_min = set('anyShift'.split())
+        shift_max = {'anyShift', 'caps?', 'command?'}
+        shift_min = {'anyShift'}
 
-        altshift_max = set('anyShift anyOption caps? command?'.split())
-        altshift_min = set('anyShift anyOption'.split())
+        altshift_max = {'anyShift', 'anyOption', 'caps?', 'command?'}
+        altshift_min = {'anyShift', 'anyOption'}
 
-        cmd_max = set('command caps? anyShift? anyOption?'.split())
-        cmd_min = set('command'.split())
+        cmd_max = {'command', 'caps?', 'anyShift?', 'anyOption?'}
+        cmd_min = {'command'}
 
-        caps_max = set('caps anyShift? command?'.split())
-        caps_min = set('caps'.split())
+        caps_max = {'caps', 'anyShift?', 'command?'}
+        caps_min = {'caps'}
 
-        cmdcaps_max = set('command caps anyShift?'.split())
-        cmdcaps_min = set('command caps'.split())
+        cmdcaps_max = {'command', 'caps', 'anyShift?'}
+        cmdcaps_min = {'command', 'caps'}
 
-        shiftcaps_max = set('anyShift caps anyOption?'.split())
-        shiftcaps_min = set('anyShift caps'.split())
+        shiftcaps_max = {'anyShift', 'caps', 'anyOption?'}
+        shiftcaps_min = {'anyShift', 'caps'}
 
-        for parent in tree.getiterator():
+        for parent in tree.iter():
 
             if parent.tag == 'keyMapSelect':
-                for child in parent:
-                    idx = int(parent.get('mapIndex'))
-                    idx_list.append(idx)
+                for modifier in parent:
+                    keymap_index = int(parent.get('mapIndex'))
+                    keymap_idx_list.append(keymap_index)
 
                     keymap = parent.get('mapIndex')
-                    states = set(child.get('keys').split())
-                    self.checkSet(
+                    states = set(modifier.get('keys').split())
+
+                    self.check_states(
                         states, keymap, default_max, default_min, 'default')
-                    self.checkSet(
+                    self.check_states(
                         states, keymap, shift_max, shift_min, 'shift')
-                    self.checkSet(
+                    self.check_states(
                         states, keymap, alt_max, alt_min, 'alt')
-                    self.checkSet(
+                    self.check_states(
                         states, keymap, altshift_max, altshift_min, 'altshift')
-                    self.checkSet(
+                    self.check_states(
                         states, keymap, cmd_max, cmd_min, 'cmd')
-                    self.checkSet(
+                    self.check_states(
                         states, keymap, caps_max, caps_min, 'caps')
-                    self.checkSet(
+                    self.check_states(
                         states, keymap, cmdcaps_max, cmdcaps_min, 'cmdcaps')
-                    self.checkSet(
+                    self.check_states(
                         states, keymap,
                         shiftcaps_max, shiftcaps_min, 'shiftcaps')
 
             if parent.tag == 'keyMapSet':
                 keymapset_id = parent.attrib['id']
                 for keymap in parent:
-                    keymap_index = keymap.attrib['index']
+                    keymap_index = int(keymap.attrib['index'])
                     for key in keymap:
-                        key_code = key.attrib['code']
+                        key_code = int(key.attrib['code'])
                         if key.get('action') is None:
                             key_type = 'output'
                         else:
                             key_type = 'action'
                         output = key.get(key_type)
-                        myKey = Key(
+
+                        self.key_list.append([
                             keymapset_id, keymap_index,
-                            key_code, key_type, output)
-                        self.key_list.append(myKey.data())
+                            key_code, key_type, output])
 
             if parent.tag == 'actions':
                 for action in parent:
                     action_id = action.get('id')
-                    for action_state in action:
-                        if action_state.get('next') is None:
+                    for action_trigger in action:
+                        if action_trigger.get('next') is None:
                             action_type = 'output'
                         else:
                             action_type = 'next'
-                        state = action_state.get('state')
-                        result = action_state.get(action_type)
-                        myAction = Action(
-                            action_id, state, action_type, result)
-                        self.action_list.append(myAction.data())
+                        state = action_trigger.get('state')
+
+                        # result can be a code point or another state
+                        result = action_trigger.get(action_type)
+                        self.action_list.append([
+                            action_id, state, action_type, result])
 
                         # Make a dictionary for key id to output.
-                        # On the Mac keyboard, the 'a' for instance is often
+                        # On the Mac keyboard, the 'a' for example is often
                         # matched to an action, as it can produce
                         # agrave, aacute, etc.
                         if [state, action_type] == ['none', 'output']:
@@ -227,17 +196,18 @@ class KeylayoutParser(object):
 
         # Yield the highest index assigned to a shift state - thus, the
         # number of shift states in the layout.
-        self.number_of_keymaps = max(idx_list)
+        self.number_of_keymaps = max(keymap_idx_list)
 
-    def findDeadkeys(self):
+    def find_deadkeys(self):
         '''
-        Return dictionary self.deadkeys: contains the state id and the Unicode
-        value of actual dead key.
-        (for instance, 's3': '02c6' - state 3: circumflex)
-        Returns list of ids for 'empty' actions:
-        this is for finding the ids of all key inputs that have
-        no immediate output. This list is used later when an '@' is appended
-        to the Unicode values, a Windows convention to mark dead keys.
+        Populate dictionary self.deadkeys which contains the state ID
+        and the code point of an actual dead key.
+        (for instance, '3': '02c6' state 3: circumflex)
+
+        Populate list of IDs for 'empty' actions, for finding IDs of all key
+        inputs that have no immediate output.
+        This list is used later when an '@' is appended to the code points,
+        a Windows convention to mark dead keys.
         '''
 
         deadkey_id = 0
@@ -252,91 +222,83 @@ class KeylayoutParser(object):
                 key_list.append([key_id, result])
                 self.empty_actions.append(key_id)
 
-        for i in key_list:
-            if i[1] in list(self.deadkeys.keys()):
-                i[1] = self.deadkeys[i[1]]
+        key_list_2 = []
+        for state, result_state in key_list:
+            if result_state in self.deadkeys.keys():
+                cp_result = self.deadkeys[result_state]
+                key_list_2.append((state, cp_result))
 
         # Add the actual deadkeys (grave, acute etc)
         # to the dict action_basekeys
-        self.action_basekeys.update(dict(key_list))
+        self.action_basekeys.update(dict(key_list_2))
 
-        return self.empty_actions
-        return self.deadkeys
-
-    def matchActions(self):
+    def match_actions(self):
         '''
-        Return a list and a dictionary:
-
-        self.action_list is extended by the base character, e.g.
+        Extend self.action_list is extended by the base character, e.g.
 
         [
             '6', # action id
             's1',  # state
             'output',  # type
             '00c1',  # Á
-            '0041'  # A
+            '0041',  # A
         ]
 
-        self.action_basekeys are all the glyphs that can be combined
+        Populate self.action_basekeys -- all the glyphs that can be combined
         with a dead key, e.g. A,E,I etc.
 
         '''
 
-        for i in self.action_list:
-            if [i[1], i[2]] == ['none', 'output']:
-                self.action_basekeys[i[0]] = i[3]
+        for action_data in self.action_list:
+            key_id, state, key_type, result = action_data
+            if [state, key_type] == ['none', 'output']:
+                self.action_basekeys[key_id] = result
 
-            if i[0] in list(self.action_basekeys.keys()):
-                i.append(self.action_basekeys[i[0]])
+            if key_id in self.action_basekeys.keys():
+                action_data.append(self.action_basekeys[key_id])
 
-        return self.action_list
-        return self.action_basekeys
-
-    def findOutputs(self):
+    def find_outputs(self):
         '''
         Find the real output values of all the keys, e.g. replacing the
-        action IDs in the XML keyboard layout with the Unicode values they
-        actually return in their standard state.
+        action IDs in the XML keyboard layout with the code points they
+        return in their standard state.
         '''
 
-        for i in self.key_list:
-            if i[4] in self.empty_actions:
+        for key_data in self.key_list:
+            output = key_data[4]
+            if output in self.empty_actions:
                 # If the key is a real dead key, mark it.
-                # This mark is used in 'makeOutputDict'.
-                i.append('@')
+                # This mark is used in 'make_output_dict'.
+                key_data.append('@')
 
-            if i[4] in self.action_basekeys:
-                i[3] = 'output'
-                i[4] = self.action_basekeys[i[4]]
-                self.output_list.append(i)
+            if output in self.action_basekeys:
+                key_data[3] = 'output'
+                key_data[4] = self.action_basekeys[output]
+                self.output_list.append(key_data)
             else:
-                self.output_list.append(i)
+                self.output_list.append(key_data)
 
-        return self.output_list
-
-    def makeDeadKeyTable(self):
+    def make_deadkey_dict(self):
         '''
-        Populate self.key_dict, which maps a deadkey
+        Populate self.deadkey_dict, which maps a deadkey
         e.g. (02dc, circumflex) to (base character, accented character) tuples
         e.g. 0041, 00c3 = A, Ã
         '''
 
-        for i in self.action_list:
-            if i[1] in list(self.deadkeys.keys()):
-                i.append(self.deadkeys[i[1]])
+        for action in self.action_list:
+            if action[1] in self.deadkeys.keys():
+                action.append(self.deadkeys[action[1]])
 
-            if len(i) == 6:
-                deadkey = i[5]
-                basekey = i[4]
-                result = i[3]
-                if deadkey in self.key_dict:
-                    self.key_dict[deadkey].append((basekey, result))
+            if len(action) == 6:
+                deadkey = action[5]
+                basekey = action[4]
+                result = action[3]
+                if deadkey in self.deadkey_dict:
+                    self.deadkey_dict[deadkey].append((basekey, result))
                 else:
-                    self.key_dict[deadkey] = [(basekey, result)]
+                    self.deadkey_dict[deadkey] = [(basekey, result)]
 
-        return self.key_dict
-
-    def makeOutputDict(self):
+    def make_output_dict(self):
         '''
         This script is configurated to work for the first keymap set of an
         XML keyboard layout only.
@@ -344,33 +306,34 @@ class KeylayoutParser(object):
         '''
 
         first_keymapset = self.output_list[0][0]
-        for i in self.output_list:
-            if i[0] != first_keymapset:
-                self.output_list.remove(i)
-            key_id = i[2]
+        for key_data in self.output_list:
+            keymap_set = key_data[0]
+            keymap_id = key_data[1]
+            key_id = key_data[2]
 
+            if keymap_set != first_keymapset:
+                self.output_list.remove(key_data)
+
+            # filling the key ID output dict with dummy output
             li = []
             for i in range(self.number_of_keymaps + 1):
                 li.append([i, '-1'])
-                self.output_dict[key_id] = dict(li)
+            self.output_dict[key_id] = dict(li)
 
-        for i in self.output_list:
-            keymap_set = i[0]
-            keymap_id = i[1]
-            key_id = i[2]
+        for key_data in self.output_list:
+            keymap_set = key_data[0]
+            keymap_id = key_data[1]
+            key_id = key_data[2]
 
-            if len(i) == 5:
-                output = i[4]
+            if len(key_data) == 5:
+                output = key_data[4]
             else:
-                # The string for making clear that this key is a deadkey.
-                # Necessary in .klc files.
-                output = i[4] + '@'
+                # The @ is marking this key as a deadkey in .klc files.
+                output = key_data[4] + '@'
 
             self.output_dict[key_id][keymap_id] = output
 
-        return self.output_dict
-
-    def getOutput(self, key_output_dict, state):
+    def get_key_output(self, key_output_dict, state):
         '''
         Used to find output per state, for every key.
         If no output, return '-1' (a.k.a. not defined).
@@ -382,8 +345,8 @@ class KeylayoutParser(object):
             output = '-1'
         return output
 
-    def writeKeyTable(self):
-        output = []
+    def get_key_table(self):
+        kt_output = []
         for win_kc_hex, win_kc_name in sorted(win_keycodes.items()):
             win_kc_int = int(win_kc_hex, 16)
 
@@ -400,99 +363,106 @@ class KeylayoutParser(object):
 
             outputs = self.output_dict[mac_kc]
 
-            # Keytable follows the syntax of the .klc file.
+            # The key_table follows the syntax of the .klc file.
             # The columns are as follows:
 
-            # keytable[0]: scan code
-            # keytable[1]: virtual key
-            # keytable[2]: spacer (empty)
-            # keytable[3]: caps (on or off, or SGCaps flag)
-            # keytable[4]: output for default state
-            # keytable[5]: output for shift
-            # keytable[6]: output for ctrl (= cmd on mac)
-            # keytable[7]: output for ctrl-shift (= cmd-caps lock on mac)
-            # keytable[8]: output for altGr (= ctrl-alt)
-            # keytable[9]: output for altGr-shift (= ctrl-alt-shift)
-            # keytable[10]: descriptions.
+            # key_table[0]: scan code
+            # key_table[1]: virtual key
+            # key_table[2]: spacer (empty)
+            # key_table[3]: caps (on or off, or SGCaps flag)
+            # key_table[4]: output for default state
+            # key_table[5]: output for shift
+            # key_table[6]: output for ctrl (= cmd on mac)
+            # key_table[7]: output for ctrl-shift (= cmd-caps lock on mac)
+            # key_table[8]: output for altGr (= ctrl-alt)
+            # key_table[9]: output for altGr-shift (= ctrl-alt-shift)
+            # key_table[10]: descriptions.
 
-            keytable = list((win_kc_hex, win_kc_name)) + ([""] * 9)
+            key_table = list((win_kc_hex, win_kc_name)) + ([""] * 9)
 
-            default_output = self.getOutput(outputs, 'default')
-            shift_output = self.getOutput(outputs, 'shift')
-            alt_output = self.getOutput(outputs, 'alt')
-            altshift_output = self.getOutput(outputs, 'altshift')
-            caps_output = self.getOutput(outputs, 'caps')
-            cmd_output = self.getOutput(outputs, 'cmd')
-            cmdcaps_output = self.getOutput(outputs, 'cmdcaps')
-            shiftcaps_output = self.getOutput(outputs, 'shiftcaps')
+            default_output = self.get_key_output(outputs, 'default')
+            shift_output = self.get_key_output(outputs, 'shift')
+            alt_output = self.get_key_output(outputs, 'alt')
+            altshift_output = self.get_key_output(outputs, 'altshift')
+            caps_output = self.get_key_output(outputs, 'caps')
+            cmd_output = self.get_key_output(outputs, 'cmd')
+            cmdcaps_output = self.get_key_output(outputs, 'cmdcaps')
+            shiftcaps_output = self.get_key_output(outputs, 'shiftcaps')
 
             # Check if the caps lock output equals the shift key,
             # to set the caps lock status.
             if caps_output == default_output:
-                keytable[3] = '0'
+                key_table[3] = '0'
             elif caps_output == shift_output:
-                keytable[3] = '1'
+                key_table[3] = '1'
             else:
                 # SGCaps are a Windows speciality, necessary if the caps lock
                 # state is different from shift.
                 # Usually, they accommodate an alternate writing system.
                 # SGCaps + Shift is possible, boosting the available
                 # shift states to 6.
-                keytable[3] = 'SGCap'
+                key_table[3] = 'SGCap'
 
-            keytable[4] = default_output
-            keytable[5] = shift_output
-            keytable[6] = cmd_output
-            keytable[7] = cmdcaps_output
-            keytable[8] = alt_output
-            keytable[9] = altshift_output
-            keytable[10] = '// %s, %s, %s, %s, %s' % (
-                char_description(default_output),
-                char_description(shift_output),
-                char_description(cmd_output),
-                char_description(alt_output),
-                char_description(altshift_output))  # Key descriptions
+            key_table[4] = default_output
+            key_table[5] = shift_output
+            key_table[6] = cmd_output
+            key_table[7] = cmdcaps_output
+            key_table[8] = alt_output
+            key_table[9] = altshift_output
+            key_table[10] = (
+                f'// {char_description(default_output)}, '
+                f'{char_description(shift_output)}, '
+                f'{char_description(cmd_output)}, '
+                f'{char_description(alt_output)}, '
+                f'{char_description(altshift_output)}')  # key descriptions
 
-            output.append('\t'.join(keytable))
+            kt_output.append('\t'.join(key_table))
 
-            if keytable[3] == 'SGCap':
-                output.append('-1\t-1\t\t0\t%s\t%s\t\t\t\t\t// %s, %s' % (
-                    caps_output,
-                    shiftcaps_output,
-                    char_description(caps_output),
-                    char_description(shiftcaps_output)))
-        return output
+            if key_table[3] == 'SGCap':
+                kt_output.append((
+                    f'-1\t-1\t\t0\t{caps_output}\t'
+                    f'{shiftcaps_output}\t\t\t\t\t'
+                    f'// {char_description(caps_output)}, '
+                    f'{char_description(shiftcaps_output)}'))
+        return kt_output
 
-    def writeDeadKeyTable(self):
+    def get_deadkey_table(self):
         '''
-        Write a summary of dead keys, their results in all intended
-        combinations.
+        Summary of dead keys, and their results in all intended combinations.
         '''
 
-        output = ['']
-        for i in list(self.key_dict.keys()):
-            output.extend([''])
-            output.append('DEADKEY\t%s' % i)
-            output.append('')
+        dk_table = ['']
+        for cp_dead, base_result_tuple in self.deadkey_dict.items():
+            dk_table.extend([''])
+            dk_table.append(f'DEADKEY\t{cp_dead}')
+            dk_table.append('')
 
-            for j in self.key_dict[i]:
-                string = '%s\t%s\t// %s -> %s' % (
-                    j[0], j[1], char_from_hex(j[0]), char_from_hex(j[1]))
-                output.append(string)
-        return output
+            for cp_base, cp_result in base_result_tuple:
+                char_base = char_from_hex(cp_base)
+                char_result = char_from_hex(cp_result)
+                line = (
+                    f'{cp_base}\t{cp_result}\t'
+                    f'// {char_base} -> {char_result}')
+                dk_table.append(line)
+        return dk_table
 
-    def writeKeynameDead(self):
-        # List of dead keys contained in the keyboard layout.
+    def get_keyname_dead(self):
+        '''
+        List of dead keys contained in the klc keyboard layout.
+        '''
 
-        output = ['', 'KEYNAME_DEAD', '']
-        for i in list(self.deadkeys.values()):
-            output.append('%s\t"%s"' % (i, char_description(i)))
-        output.append('')
+        list_keyname_dead = ['', 'KEYNAME_DEAD', '']
+        # for codepoint in sorted(self.deadkeys.values()):
+        for codepoint in self.deadkeys.values():
+            list_keyname_dead.append(
+                f'{codepoint}\t"{char_description(codepoint)}"')
+        list_keyname_dead.append('')
 
-        if len(output) == 4:
+        if len(list_keyname_dead) == 4:
+            # no deadkeys, no KEYNAME_DEAD list
             return ['', '']
         else:
-            return output
+            return list_keyname_dead
 
 
 def read_file(path):
@@ -525,22 +495,13 @@ def codepoint_from_char(character):
             character, char_description(replacement_char)))
         return replacement_char
 
-    except ValueError:
-        print(error_msg_conversion.format(
-            character, char_description(replacement_char)))
-        return replacement_char
-
 
 def char_from_hex(hex_string):
     '''
     Return character from a Unicode code point.
     '''
 
-    # XXX what is this here for?
-    if len(hex_string) > 5:
-        return hex_string
-    else:
-        return chr(int(hex_string, 16))
+    return chr(int(hex_string, 16))
 
 
 def char_description(hex_string):
@@ -559,8 +520,8 @@ def char_description(hex_string):
 
 def filter_xml(input_keylayout):
     '''
-    Filter xml-based keylayout file.
-    Unicode entities (&#x0000;) make the Elementtree xml parser choke,
+    Filter xml-based .keylayout file.
+    Unicode entities (&#x0000;) make the ElementTree xml parser choke,
     that’s why some replacement operations are necessary.
     Also, all literal output characters are converted to code points
     (0000, ffff, 1ff23 etc) for easier handling downstream.
@@ -570,7 +531,7 @@ def filter_xml(input_keylayout):
     rx_hex_escape = re.compile(r'&#x([a-fA-F0-9]{4,6});')
     rx_output_line = re.compile(r'(output=[\"\'])(.+?)([\"\'])')
 
-    # Fixing the first line to make Elementtree not stumble
+    # Fixing the first line to make ElementTree not stumble
     # over a capitalized XML tag
     filtered_xml = ['<?xml version="1.0" encoding="UTF-8"?>']
 
@@ -642,30 +603,8 @@ def make_klc_filename(keyboard_name):
 def process_input_keylayout(input_keylayout):
     filtered_xml = filter_xml(input_keylayout)
     tree = ET.XML(filtered_xml)
-
-    keyboard_data = KeylayoutParser()
-    keyboard_data.parse(tree)
-    keyboard_data.findDeadkeys()
-    keyboard_data.matchActions()
-    keyboard_data.findOutputs()
-    keyboard_data.makeDeadKeyTable()
-    keyboard_data.makeOutputDict()
-
+    keyboard_data = KeylayoutParser(tree)
     return keyboard_data
-
-
-def make_klc_metadata(keyboard_name):
-
-    # company = 'Adobe Systems Incorporated'
-    company = 'myCompany'
-    year = time.localtime()[0]
-
-    klc_prefix = klc_prefix_dummy.format(
-        locale_tag, keyboard_name, year, company, company,
-        locale_name, locale_id_long)
-    klc_suffix = klc_suffix_dummy.format(
-        locale_id, keyboard_name, locale_id, locale_name_long)
-    return klc_prefix, klc_suffix
 
 
 def make_keyboard_name(input_path):
@@ -691,6 +630,38 @@ def verify_input_file(parser, input_file):
         parser.error('Please use a xml-based .keylayout file')
     return input_file
 
+
+def make_klc_prologue(keyboard_name):
+
+    # company = 'Adobe Systems Incorporated'
+    company = 'myCompany'
+    year = time.localtime()[0]
+
+    return klc_prologue_dummy.format(
+        locale_tag, keyboard_name, year, company, company,
+        locale_name, locale_id_long)
+
+
+def make_klc_epilogue(keyboard_name):
+
+    return klc_epilogue_dummy.format(
+        locale_id, keyboard_name, locale_id, locale_name_long)
+
+
+def make_klc_data(keyboard_name, keyboard_data):
+    klc_prologue = make_klc_prologue(keyboard_name)
+    klc_epilogue = make_klc_epilogue(keyboard_name)
+
+    klc_data = []
+    klc_data.extend(klc_prologue.splitlines())
+    klc_data.extend(keyboard_data.get_key_table())
+    klc_data.extend(keyboard_data.get_deadkey_table())
+    klc_data.extend(klc_keynames)
+    klc_data.extend(keyboard_data.get_keyname_dead())
+    klc_data.extend(klc_epilogue.splitlines())
+    return klc_data
+
+
 def get_args():
 
     parser = argparse.ArgumentParser(
@@ -711,8 +682,7 @@ def get_args():
     return parser.parse_args()
 
 
-if __name__ == '__main__':
-    args = get_args()
+def run(args):
     input_file = args.input
 
     if args.output_dir:
@@ -721,23 +691,19 @@ if __name__ == '__main__':
         output_dir = os.path.abspath(os.path.dirname(input_file))
 
     keyboard_data = process_input_keylayout(input_file)
-
     keyboard_name = make_keyboard_name(input_file)
-    klc_prefix, klc_suffix = make_klc_metadata(keyboard_name)
     klc_filename = make_klc_filename(keyboard_name)
-
-    output = []
-    output.extend(klc_prefix.splitlines())
-    output.extend(keyboard_data.writeKeyTable())
-    output.extend(keyboard_data.writeDeadKeyTable())
-    output.extend(klc_keynames)
-    output.extend(keyboard_data.writeKeynameDead())
-    output.extend(klc_suffix.splitlines())
+    klc_data = make_klc_data(keyboard_name, keyboard_data)
 
     output_path = os.sep.join((output_dir, klc_filename))
     with codecs.open(output_path, 'w', 'utf-16') as output_file:
-        for line in output:
+        for line in klc_data:
             output_file.write(line)
             output_file.write(os.linesep)
 
-    print(f'written {keyboard_name} to {klc_filename}')
+    print(f'{keyboard_name} written to {klc_filename}')
+
+
+if __name__ == '__main__':
+    args = get_args()
+    run(args)
