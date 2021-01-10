@@ -1,0 +1,31 @@
+<?xml version="1.1" encoding="UTF-8"?>
+<!DOCTYPE keyboard SYSTEM "file://localhost/System/Library/DTDs/KeyboardLayout.dtd">
+<keyboard group="126" id="-1128" name="test" maxout="2">
+    <layouts>
+        <layout first="0" last="17" mapSet="16c" modifiers="f4"/>
+    </layouts>
+    <modifierMap id="f4" defaultIndex="7">
+        <keyMapSelect mapIndex="0">
+            <modifier keys="command?"/>
+            <modifier keys="anyShift? caps? command"/>
+        </keyMapSelect>
+    </modifierMap>
+    <keyMapSet id="16c">
+        <keyMap index="0">
+            <key code="0" action="14"/>
+            <key code="1" output="s"/>
+            <key code="36" output="&#x000D;"/>
+            <key code="98" output="abc"/>
+            <key code="99" output="&#x0061;&#x0062;&#x0063;"/>
+        </keyMap>
+    </keyMapSet>
+    <actions>
+        <action id="14">
+            <when state="none" output="a"/>
+            <when state="1" output="á"/>
+        </action>
+    </actions>
+    <terminators>
+        <when state="1" output="´"/>
+    </terminators>
+</keyboard>
