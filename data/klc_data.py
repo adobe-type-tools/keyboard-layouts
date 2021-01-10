@@ -230,7 +230,7 @@ klc_keynames = [
     '5c\t"Right Windows"',
     '5d\tApplication']
 
-klc_prefix_dummy = (
+klc_prologue_dummy = (
     '''KBD\t{}\t"{}"\r'''
     '''\r'''
     '''COPYRIGHT\t"(c) {} {}"\r'''
@@ -260,7 +260,7 @@ klc_prefix_dummy = (
 )
 # (name, keyboard_name, year, company, company, locale_name, locale_id_long)
 
-klc_suffix_dummy = (
+klc_epilogue_dummy = (
     '''DESCRIPTIONS\r'''
     '''\r'''
     '''{}\t{}\r'''
