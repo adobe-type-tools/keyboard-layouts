@@ -36,3 +36,4 @@ locale_name_long = 'English (United States)'
 
 # more:
 # http://msdn.microsoft.com/en-us/library/windows/desktop/dd318693(v=vs.85).aspx
+# https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-lcid/63d3d639-7fd2-4afb-abbe-0d5b5551eef8

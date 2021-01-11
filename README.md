@@ -1,13 +1,13 @@
 mac2winKeyboard.py
 =====
-v 2.00, January 10, 2021
+v 2.01, January 11, 2021
 
 This Python script is intended for converting Mac keyboard layouts to Windows .klc files, the input format for [Microsoft Keyboard Layout Creator]. The resulting .klc files reflect the Mac keyboard layout, and can be used in MSKLC to compile working keyboard layouts for Windows. Should any further modifications be desired, the .klc output files can also be edited with a text editor.
 
 Originally created for converting a bulk of Pi font keyboard layouts, this script proved being useful for converting other, “normal” layouts as well, so the decision was made to make the script publicly available.
 
 
-#### Disclaimer:
+### Disclaimer
 
 This script tries to convert keyboard layouts from Mac to Windows as verbatim as possible. Still, it is far from being a linguistically accurate tool: Some of the niceties possible in both Mac and Win keyboard layouts are not supported; for instance, _ligatures_ (more on ligatures below). Nevertheless, it is assumed that this script will at least help producing good base data to build on.
 
@@ -16,7 +16,7 @@ For now, _ligatures_ (2 or more output characters assigned to a single key) are 
 Also, some shift states might be dropped in the conversion. This is necessary, as Windows only supports six shift states, two of them with reduced features.
 
 
-#### Usage:
+### Usage
 
 Example for converting the input file `special.keylayout` to output file `special.klc`:
 
@@ -25,27 +25,30 @@ Example for converting the input file `special.keylayout` to output file `specia
 No further options or triggers are needed. The output .klc file will be generated alongside the input file, the name will be truncated to a Windows-style 8+3-digit file name. If the original file name contains periods and/or spaces, they are stripped (not supported in MSKLC keyboard names). Digits in the original keyboard name (indicating a series), are preserved in the output file name.
 
 
-#### How to create a Windows keyboard layout from a macOS keyboard layout
+### How to create a Windows keyboard layout from a macOS keyboard layout?
 
-In Ukelele:
+##### In Ukelele:
 - create a new keyboard layot (e.g. “New from current input source”)
 - (edit to your liking)
 - save as .keylayout file (for example, special.keylayout)
 
-On the command line, run the script:
+##### In a text editor:
+- edit the file `data/locale_data.py` to match you intended locale (see [list of MS locale IDs])
+
+##### On the command line:
 
 	python mac2winKeyboard.py special.keylayout
 
 A .klc file will be created in the same directory.
 
-In MSKLC:
+##### In MSKLC
 
 - open the .klc file and export it as an installable .dll (Project → Build DLL and Setup Package)
 
 Install the Windows Keyboard Layout using the freshly-created setup file.
 
 
-#### General information and tools for creating keyboard layouts:
+### General information and tools for creating keyboard layouts
 
 
 [Blog Post], March 2012  
@@ -57,6 +60,8 @@ Install the Windows Keyboard Layout using the freshly-created setup file.
 
 
 [Microsoft Keyboard Layout Creator]: https://www.microsoft.com/en-us/download/details.aspx?id=102134  
+[list of MS locale IDs]: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-lcid/63d3d639-7fd2-4afb-abbe-0d5b5551eef8
+  
 [Slides and notes from ATypI presentation]: https://blog.typekit.com/wp-content/uploads/2012/03/keyboard_layouts_annotated.pdf
 [Blog Post]: https://blog.typekit.com/2012/03/06/on-keyboard-layouts/
 [Ukelele]: https://software.sil.org/ukelele/
