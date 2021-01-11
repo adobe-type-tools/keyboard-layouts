@@ -474,7 +474,7 @@ def read_file(path):
     Read a file, make list of the lines, close the file.
     '''
 
-    with open(path, 'r') as f:
+    with open(path, 'r', encoding='utf-8') as f:
         data = f.read().splitlines()
     return data
 
