@@ -60,7 +60,7 @@ class KLTest(unittest.TestCase):
     def test_verify_input_file(self):
         import argparse
         parser = argparse.ArgumentParser()
-        test_file = os.path.join('tests', 'unfiltered.keylayout')
+        test_file = os.path.join('tests', 'dummy.keylayout')
         non_klc_file = os.path.join('tests', 'dummy.txt')
         nonexistent_file = os.path.join('tests', 'nonexistent')
         self.assertEqual(
@@ -83,9 +83,9 @@ class KLTest(unittest.TestCase):
     def test_filter_xml(self):
         self.assertEqual(
             filter_xml(
-                os.path.join('tests', 'unfiltered.keylayout')),
+                os.path.join('tests', 'dummy.keylayout')),
             '\n'.join(read_file(
-                os.path.join('tests', 'filtered.keylayout')))
+                os.path.join('tests', 'dummy_filtered.keylayout')))
         )
 
     def test_make_klc_data(self):
@@ -99,7 +99,15 @@ class KLTest(unittest.TestCase):
             make_klc_data(keyboard_name, keyboard_data),
             klc_data.splitlines())
 
-
+        input_keylayout = os.path.join('tests', 'dummy.keylayout')
+        output_klc = os.path.join('tests', 'dummy.klc')
+        keyboard_data = process_input_keylayout(input_keylayout)
+        keyboard_name = make_keyboard_name(input_keylayout)
+        with codecs.open(output_klc, 'r', 'utf-16') as raw_klc:
+            klc_data = raw_klc.read()
+        self.assertEqual(
+            make_klc_data(keyboard_name, keyboard_data),
+            klc_data.splitlines())
 
 
 if __name__ == "__main__":
