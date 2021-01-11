@@ -16,6 +16,14 @@ For now, _ligatures_ (2 or more output characters assigned to a single key) are 
 Also, some shift states might be dropped in the conversion. This is necessary, as Windows only supports six shift states, two of them with reduced features.
 
 
+### Python requirements
+
+The script was successfully tested using
+
+- Python 3.7.4 on macOS 10.15.7
+- Python 3.9.1 on Windows 10 Enterprise v 1809
+
+
 ### Usage
 
 Example for converting the input file `special.keylayout` to output file `special.klc`:
@@ -49,7 +57,6 @@ Install the Windows Keyboard Layout using the freshly-created setup file.
 
 
 ### General information and tools for creating keyboard layouts
-
 
 [Blog Post], March 2012  
 [Slides and notes from ATypI presentation], September 2011  
