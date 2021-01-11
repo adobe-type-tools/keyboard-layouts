@@ -61,13 +61,24 @@ class KLTest(unittest.TestCase):
         import argparse
         parser = argparse.ArgumentParser()
         test_file = os.path.join('tests', 'unfiltered.keylayout')
+        non_klc_file = os.path.join('tests', 'dummy.txt')
         nonexistent_file = os.path.join('tests', 'nonexistent')
         self.assertEqual(
             verify_input_file(parser, test_file), test_file
         )
-        self.assertRaises(
-            verify_input_file(parser, nonexistent_file), 2
-        )
+
+        with self.assertRaises(SystemExit) as cm:
+            verify_input_file(parser, nonexistent_file)
+        self.assertEqual(cm.exception.code, 2)
+
+        with self.assertRaises(SystemExit) as cm:
+            verify_input_file(parser, non_klc_file)
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_get_args(self):
+        with self.assertRaises(SystemExit) as cm:
+            get_args([])
+        self.assertEqual(cm.exception.code, 2)
 
     def test_filter_xml(self):
         self.assertEqual(

@@ -666,7 +666,7 @@ def make_klc_data(keyboard_name, keyboard_data):
     return klc_data
 
 
-def get_args():
+def get_args(args=None):
 
     parser = argparse.ArgumentParser(
         description=__doc__)
@@ -683,7 +683,7 @@ def get_args():
         metavar='DIR',
     )
 
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 
 def run(args):
