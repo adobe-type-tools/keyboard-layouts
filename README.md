@@ -1,4 +1,4 @@
-[![codecov](https://codecov.io/gh/adobe-type-tools/keyboard-layouts/branch/master/graph/badge.svg?token=n2PuH5nJQr)](https://codecov.io/gh/adobe-type-tools/keyboard-layouts)
+[![codecov](https://codecov.io/gh/adobe-type-tools/keyboard-layouts/branch/main/graph/badge.svg?token=n2PuH5nJQr)](https://codecov.io/gh/adobe-type-tools/keyboard-layouts)
 
 mac2winKeyboard.py
 =====
