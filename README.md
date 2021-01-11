@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/adobe-type-tools/keyboard-layouts/branch/master/graph/badge.svg?token=n2PuH5nJQr)](https://codecov.io/gh/adobe-type-tools/keyboard-layouts)
+
 mac2winKeyboard.py
 =====
 v 2.01, January 11, 2021
