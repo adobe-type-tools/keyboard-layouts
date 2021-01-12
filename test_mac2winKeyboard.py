@@ -111,19 +111,22 @@ class KLTest(unittest.TestCase):
 
     def test_run(self):
         import tempfile
-        temp_dir = tempfile.gettempdir()
-        args = argparse.ArgumentParser()
-        input_keylayout = os.path.join('tests', 'us_test.keylayout')
-        args.input = input_keylayout
-        args.output_dir = temp_dir
-        run(args)
-        output_klc = os.path.join(temp_dir, 'us_test.klc')
-        example_klc = os.path.join('tests', 'us_test.klc')
-        with open(example_klc, 'r', encoding='utf-16') as xklc:
-            example_klc_data = xklc.read()
-        with open(output_klc, 'r', encoding='utf-16') as oklc:
-            output_klc_data = oklc.read()
-        self.assertEqual(example_klc_data, output_klc_data)
+
+        for sample_keylayout in ['us_test.keylayout', 'sgcap.keylayout']:
+            klc_filename = sample_keylayout.split('.')[0] + '.klc'
+            temp_dir = tempfile.gettempdir()
+            args = argparse.ArgumentParser()
+            input_keylayout = os.path.join('tests', sample_keylayout)
+            args.input = input_keylayout
+            args.output_dir = temp_dir
+            run(args)
+            output_klc = os.path.join(temp_dir, klc_filename)
+            example_klc = os.path.join('tests', klc_filename)
+            with open(example_klc, 'r', encoding='utf-16') as xklc:
+                example_klc_data = xklc.read()
+            with open(output_klc, 'r', encoding='utf-16') as oklc:
+                output_klc_data = oklc.read()
+            self.assertEqual(example_klc_data, output_klc_data)
 
 
 if __name__ == "__main__":
