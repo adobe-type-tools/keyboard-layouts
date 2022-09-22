@@ -1,6 +1,10 @@
+import re
 import sys
+import time
 import unittest
+
 from mac2winKeyboard import *
+
 
 class KLTest(unittest.TestCase):
 
@@ -94,7 +98,7 @@ class KLTest(unittest.TestCase):
         keyboard_data = process_input_keylayout(input_keylayout)
         keyboard_name = make_keyboard_name(input_keylayout)
         with codecs.open(output_klc, 'r', 'utf-16') as raw_klc:
-            klc_data = raw_klc.read()
+            klc_data = actualize_copyright_year(raw_klc.read())
         self.assertEqual(
             make_klc_data(keyboard_name, keyboard_data),
             klc_data.splitlines())
@@ -104,7 +108,7 @@ class KLTest(unittest.TestCase):
         keyboard_data = process_input_keylayout(input_keylayout)
         keyboard_name = make_keyboard_name(input_keylayout)
         with codecs.open(output_klc, 'r', 'utf-16') as raw_klc:
-            klc_data = raw_klc.read()
+            klc_data = actualize_copyright_year(raw_klc.read())
         self.assertEqual(
             make_klc_data(keyboard_name, keyboard_data),
             klc_data.splitlines())
@@ -123,10 +127,15 @@ class KLTest(unittest.TestCase):
             output_klc = os.path.join(temp_dir, klc_filename)
             example_klc = os.path.join('tests', klc_filename)
             with open(example_klc, 'r', encoding='utf-16') as xklc:
-                example_klc_data = xklc.read()
+                example_klc_data = actualize_copyright_year(xklc.read())
             with open(output_klc, 'r', encoding='utf-16') as oklc:
                 output_klc_data = oklc.read()
             self.assertEqual(example_klc_data, output_klc_data)
+
+
+def actualize_copyright_year(s):
+    year = time.localtime()[0]
+    return re.sub(r'COPYRIGHT\t\"\(c\) \d+ ', f'COPYRIGHT\t"(c) {year} ', s)
 
 
 if __name__ == "__main__":
