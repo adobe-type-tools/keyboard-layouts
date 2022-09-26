@@ -1,38 +1,35 @@
 # Neutral:
 # --------
 
-# locale_id = '0000'
-# locale_id_long = '00000000'
-# locale_tag = 'NE'
-# locale_name = 'ne-NE'
-# locale_name_long = 'Neutral (Neutral)'
+# language_id = '0000'
+# language_tag = 'ne-NE'
+# language_name = 'Neutral (Neutral)'
+# keyboard_description = "Custom (Mac)"
+
 
 # US English:
 # -----------
 
-locale_id = '0409'
-locale_id_long = '00000409'
-locale_tag = 'US'
-locale_name = 'en-US'
-locale_name_long = 'English (United States)'
+language_id = '0409'
+language_tag = 'en-US'
+language_name = 'English (United States)'
+keyboard_description = "US (Mac)"
 
 # German:
 # -------
 
-# locale_id = '0C07'
-# locale_id_long = '00000C07'
-# locale_tag = 'DE'
-# locale_name = 'de-DE'
-# locale_name_long = 'German (DE)'
+# language_id = '0C07'
+# language_tag = 'de-DE'
+# language_name = 'German (DE)'
+# keyboard_description = "German (Mac)"
 
 # French:
 # -------
 
-# locale_id = '080C'
-# locale_id_long = '0000080C'
-# locale_tag = 'FR'
-# locale_name = 'fr-FR'
-# locale_name_long = 'French (FR)'
+# language_id = '080C'
+# language_tag = 'fr-FR'
+# language_name = 'French (FR)'
+# keyboard_description = "French (Mac)"
 
 # more:
 # http://msdn.microsoft.com/en-us/library/windows/desktop/dd318693(v=vs.85).aspx
