@@ -300,19 +300,19 @@ class KeylayoutParser(object):
 
     def make_output_dict(self):
         '''
-        This script is configurated to work for the first keymap set of an
+        This script is configured to work for the first keymap set of an
         XML keyboard layout only.
         Here, the filtering occurs:
         '''
 
         first_keymapset = self.output_list[0][0]
+        self.output_list = [key_data
+                            for key_data in self.output_list
+                            if key_data[0] == first_keymapset]
+
         for key_data in self.output_list:
-            keymap_set = key_data[0]
             keymap_id = key_data[1]
             key_id = key_data[2]
-
-            if keymap_set != first_keymapset:
-                self.output_list.remove(key_data)
 
             # filling the key ID output dict with dummy output
             li = []
@@ -321,7 +321,6 @@ class KeylayoutParser(object):
             self.output_dict[key_id] = dict(li)
 
         for key_data in self.output_list:
-            keymap_set = key_data[0]
             keymap_id = key_data[1]
             key_id = key_data[2]
 
