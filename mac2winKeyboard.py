@@ -395,13 +395,12 @@ class KeylayoutParser(object):
             elif caps_output == shift_output:
                 key_table[3] = '1'
             else:
-                # SGCaps are a Windows speciality, necessary if the caps lock
-                # state is different from shift.
-                # Usually, they accommodate an alternate writing system.
-                # SGCaps + Shift is possible, boosting the available
+                # SGCaps is a Windows speciality, it is necessary if the Caps
+                # Lock output is different from the Shift output. Usually, they
+                # accommodate an alternate writing system. Caps Lock + Shift is
+                # considered a separate shift state, boosting the available
                 # shift states to 6.
                 key_table[3] = 'SGCap'
-
             key_table[4] = default_output
             key_table[5] = shift_output
             key_table[6] = cmd_output
@@ -419,6 +418,13 @@ class KeylayoutParser(object):
             kt_output.append('\t'.join(key_table))
 
             if key_table[3] == 'SGCap':
+                print('SGCap character converted: '
+                      'default: {}, shift: {}, '
+                      'caps: {}, shift+caps: {}'.format(
+                          char_description(default_output),
+                          char_description(shift_output),
+                          char_description(caps_output),
+                          char_description(shiftcaps_output)))
                 kt_output.append((
                     f'-1\t-1\t\t0\t{caps_output}\t'
                     f'{shiftcaps_output}\t\t\t\t\t'
