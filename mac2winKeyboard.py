@@ -413,6 +413,7 @@ class KeylayoutParser(object):
                 f'// {char_description(default_output)}, '
                 f'{char_description(shift_output)}, '
                 f'{char_description(cmd_output)}, '
+                f'{char_description(cmdcaps_output)}, '
                 f'{char_description(alt_output)}, '
                 f'{char_description(altshift_output)}')  # key descriptions
 
