@@ -89,44 +89,9 @@ class KeylayoutParser(object):
         self.make_deadkey_dict()
         self.make_output_dict()
 
-    def check_states(self, states, keymap, maxset, minset, mod_name):
-        '''
-        Assign index numbers to the different shift states, by comparing
-        them to the minimum and maximum possible modifier configurations.
-        This is necessary as the arrangement in the Mac keyboard layout
-        is arbitrary.
-        '''
-
-        if maxset.issuperset(states) and minset.issubset(states):
-            self.keymap_assignments[mod_name] = int(keymap)
-
     def parse(self, tree):
 
         keymap_idx_list = []  # Find the number of keymap indexes.
-
-        default_max = {'command?', 'caps?'}
-        default_min = set()
-
-        alt_max = {'anyOption', 'caps?', 'command?'}
-        alt_min = {'anyOption'}
-
-        shift_max = {'anyShift', 'caps?', 'command?'}
-        shift_min = {'anyShift'}
-
-        altshift_max = {'anyShift', 'anyOption', 'caps?', 'command?'}
-        altshift_min = {'anyShift', 'anyOption'}
-
-        cmd_max = {'command', 'caps?', 'anyShift?', 'anyOption?'}
-        cmd_min = {'command'}
-
-        caps_max = {'caps', 'anyShift?', 'command?'}
-        caps_min = {'caps'}
-
-        cmdcaps_max = {'command', 'caps', 'anyShift?'}
-        cmdcaps_min = {'command', 'caps'}
-
-        shiftcaps_max = {'anyShift', 'caps', 'anyOption?'}
-        shiftcaps_min = {'anyShift', 'caps'}
 
         for parent in tree.iter():
 
@@ -135,26 +100,15 @@ class KeylayoutParser(object):
                     keymap_index = int(parent.get('mapIndex'))
                     keymap_idx_list.append(keymap_index)
 
-                    keymap = parent.get('mapIndex')
-                    states = set(modifier.get('keys').split())
+                    mod_name = get_name_of_simplified_modifier_set(
+                        simplify_modifier_set(modifier.get('keys').split()))
 
-                    self.check_states(
-                        states, keymap, default_max, default_min, 'default')
-                    self.check_states(
-                        states, keymap, shift_max, shift_min, 'shift')
-                    self.check_states(
-                        states, keymap, alt_max, alt_min, 'alt')
-                    self.check_states(
-                        states, keymap, altshift_max, altshift_min, 'altshift')
-                    self.check_states(
-                        states, keymap, cmd_max, cmd_min, 'cmd')
-                    self.check_states(
-                        states, keymap, caps_max, caps_min, 'caps')
-                    self.check_states(
-                        states, keymap, cmdcaps_max, cmdcaps_min, 'cmdcaps')
-                    self.check_states(
-                        states, keymap,
-                        shiftcaps_max, shiftcaps_min, 'shiftcaps')
+                    if mod_name is not None:
+                        if self.keymap_assignments.get(
+                                mod_name, keymap_index) != keymap_index:
+                            print(
+                                f'Warning: multiple key maps match {mod_name}')
+                        self.keymap_assignments[mod_name] = keymap_index
 
             if parent.tag == 'keyMapSet':
                 keymapset_id = parent.attrib['id']
@@ -197,6 +151,13 @@ class KeylayoutParser(object):
         # Yield the highest index assigned to a shift state - thus, the
         # number of shift states in the layout.
         self.number_of_keymaps = max(keymap_idx_list)
+
+        # We are checking only the important ones, which are used for writing
+        # in most languages.
+        common_modifiers = ['default', 'shift', 'alt', 'altshift', 'caps']
+        for mod_name in common_modifiers:
+            if mod_name not in self.keymap_assignments:
+                print(f'Warning: No key map was found for {mod_name}.')
 
     def find_deadkeys(self):
         '''
@@ -671,6 +632,59 @@ def make_klc_data(keyboard_name, keyboard_data):
     klc_data.extend(keyboard_data.get_keyname_dead())
     klc_data.extend(klc_epilogue.splitlines())
     return klc_data
+
+
+def simplify_modifier_set(modifiers):
+    '''
+    Simplify modifier set, to make sure that we can recognize the most
+    important ones.
+    '''
+
+    # Remove optional modifiers.
+    modifiers = {key for key in modifiers if not key.endswith('?')}
+
+    # Replace left modifiers with 'any' modifiers.
+    #
+    # No current Apple keyboard, or Cocoa-based application distinguishes
+    # between left and right keys, so we don't have to handle them separately.
+    # Command and caps doesn't have left and right versions, so there is no
+    # need to unify them here.
+    #
+    # See "simplified modifiers" in
+    # https://software.sil.org/ukelele/ukelele-version-history/
+    for old_key, new_key in [
+        ('shift', 'anyShift'),
+        ('option', 'anyOption'),
+        ('control', 'anyControl'),
+    ]:
+        if old_key in modifiers:
+            modifiers.remove(old_key)
+            modifiers.add(new_key)
+
+    return modifiers
+
+
+def get_name_of_simplified_modifier_set(modifiers):
+    '''
+    Get the name of the simplified modifier set.
+
+    Returns None if the modifier set is not one of the important ones.
+    '''
+
+    for mod_set, mod_name in [
+        (set(), 'default'),
+        ({'anyShift'}, 'shift'),
+        ({'anyOption'}, 'alt'),
+        ({'anyOption', 'anyShift'}, 'altshift'),
+        ({'command'}, 'cmd'),
+        ({'caps'}, 'caps'),
+        ({'command', 'caps'}, 'cmdcaps'),
+        ({'anyShift', 'caps'}, 'shiftcaps'),
+    ]:
+        if modifiers == mod_set:
+            return mod_name
+
+    return None
 
 
 def get_args(args=None):
