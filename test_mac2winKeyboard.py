@@ -132,6 +132,78 @@ class KLTest(unittest.TestCase):
                 output_klc_data = oklc.read()
             self.assertEqual(example_klc_data, output_klc_data)
 
+    def test_simplify_modifier_set(self):
+        # Converts left keys to 'any' keys
+        self.assertEqual(
+            simplify_modifier_set({'shift', 'option', 'control'}),
+            {'anyShift', 'anyOption', 'anyControl'}
+        )
+
+        # Removes optionals
+        self.assertEqual(
+            simplify_modifier_set(
+                {'shift?', 'rightShift?', 'anyShift?', 'option?',
+                 'rightOption?', 'anyOption?', 'control?',
+                 'rightControl?', 'anyControl?', 'command?',
+                 'caps?'}),
+            set()
+        )
+
+        # Leaves right and 'any' keys unchanged
+        self.assertEqual(
+            simplify_modifier_set(
+                {'anyShift', 'anyOption', 'anyControl',
+                 'rightOption', 'rightShift', 'rightControl',
+                 'command', 'caps'}),
+            {'anyShift', 'anyOption', 'anyControl', 'rightOption',
+             'rightShift', 'rightControl', 'command', 'caps'}
+        )
+
+    def test_get_name_of_simplified_modifier_set(self):
+        # Returns the expected value for the supported modifier sets
+        self.assertEqual(
+            get_name_of_simplified_modifier_set(set()),
+            'default'
+        )
+        self.assertEqual(
+            get_name_of_simplified_modifier_set({'anyShift'}),
+            'shift'
+        )
+        self.assertEqual(
+            get_name_of_simplified_modifier_set({'anyOption'}),
+            'alt'
+        )
+        self.assertEqual(
+            get_name_of_simplified_modifier_set({'anyOption', 'anyShift'}),
+            'altshift'
+        )
+        self.assertEqual(
+            get_name_of_simplified_modifier_set({'command'}),
+            'cmd'
+        )
+        self.assertEqual(
+            get_name_of_simplified_modifier_set({'caps'}),
+            'caps'
+        )
+        self.assertEqual(
+            get_name_of_simplified_modifier_set({'command', 'caps'}),
+            'cmdcaps'
+        )
+        self.assertEqual(
+            get_name_of_simplified_modifier_set({'anyShift', 'caps'}),
+            'shiftcaps'
+        )
+
+        # Returns None for the unsupported modifier sets
+        self.assertEqual(
+            get_name_of_simplified_modifier_set({'rightShift'}),
+            None
+        )
+        self.assertEqual(
+            get_name_of_simplified_modifier_set({'control'}),
+            None
+        )
+
 
 def actualize_copyright_year(s):
     year = time.localtime()[0]
